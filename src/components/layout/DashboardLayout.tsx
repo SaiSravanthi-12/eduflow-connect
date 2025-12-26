@@ -55,6 +55,7 @@ const navItemsByRole: Record<string, NavItem[]> = {
     { icon: ClipboardList, label: 'Quizzes', href: '/student/quizzes' },
     { icon: FileText, label: 'Assignments', href: '/student/assignments' },
     { icon: GraduationCap, label: 'Exams', href: '/student/exams' },
+    { icon: BarChart3, label: 'Psychometric Test', href: '/student/psychometric-test' },
     { icon: User, label: 'Profile', href: '/student/profile' },
   ],
 };

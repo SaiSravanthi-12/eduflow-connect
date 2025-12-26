@@ -36,6 +36,7 @@ import StudentQuizzesPage from "./pages/student/StudentQuizzesPage";
 import StudentAssignmentsPage from "./pages/student/StudentAssignmentsPage";
 import StudentExamsPage from "./pages/student/StudentExamsPage";
 import StudentProfilePage from "./pages/student/StudentProfilePage";
+import StudentPsychometricTestPage from "./pages/student/StudentPsychometricTestPage";
 
 const queryClient = new QueryClient();
 
@@ -107,6 +108,7 @@ function AppRoutes() {
       <Route path="/student/quizzes" element={<ProtectedRoute allowedRoles={['student']}><StudentQuizzesPage /></ProtectedRoute>} />
       <Route path="/student/assignments" element={<ProtectedRoute allowedRoles={['student']}><StudentAssignmentsPage /></ProtectedRoute>} />
       <Route path="/student/exams" element={<ProtectedRoute allowedRoles={['student']}><StudentExamsPage /></ProtectedRoute>} />
+      <Route path="/student/psychometric-test" element={<ProtectedRoute allowedRoles={['student']}><StudentPsychometricTestPage /></ProtectedRoute>} />
       <Route path="/student/profile" element={<ProtectedRoute allowedRoles={['student']}><StudentProfilePage /></ProtectedRoute>} />
 
       {/* Catch All */}

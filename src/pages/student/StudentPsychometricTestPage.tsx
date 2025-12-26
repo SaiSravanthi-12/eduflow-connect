@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Brain, CheckCircle, ArrowRight, ArrowLeft, RotateCcw, Trophy, Target, Lightbulb, Users } from 'lucide-react';
+import { Brain, CheckCircle, ArrowRight, ArrowLeft, RotateCcw, Trophy, Target, Lightbulb, Users, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface Question {
   id: string;
@@ -166,6 +168,30 @@ export default function StudentPsychometricTestPage() {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [testCompleted, setTestCompleted] = useState(false);
   const [results, setResults] = useState<TestResult[]>([]);
+  const [aiGuidance, setAiGuidance] = useState<string | null>(null);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
+  const { toast } = useToast();
+
+  const fetchAIGuidance = async (resultData: TestResult[]) => {
+    setIsLoadingAI(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('career-guidance', {
+        body: { results: resultData.map(r => ({ category: r.category, label: r.label, score: r.score })) },
+      });
+
+      if (error) throw error;
+      setAiGuidance(data.guidance);
+    } catch (error: any) {
+      console.error('Error fetching AI guidance:', error);
+      toast({
+        title: 'Could not generate AI guidance',
+        description: error.message || 'Please try again later.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingAI(false);
+    }
+  };
 
   const handleStartTest = () => {
     setTestStarted(true);
@@ -174,6 +200,7 @@ export default function StudentPsychometricTestPage() {
     setSelectedOption(null);
     setTestCompleted(false);
     setResults([]);
+    setAiGuidance(null);
   };
 
   const handleSelectOption = (optionIndex: number) => {
@@ -208,13 +235,15 @@ export default function StudentPsychometricTestPage() {
 
   const calculateResults = () => {
     const question = psychometricQuestions[currentQuestion];
+    const updatedAnswers = { ...answers };
+    
     if (selectedOption !== null) {
       const selected = question.options[selectedOption];
-      answers[selected.category] = (answers[selected.category] || 0) + selected.score;
+      updatedAnswers[selected.category] = (updatedAnswers[selected.category] || 0) + selected.score;
     }
 
     const maxScore = psychometricQuestions.length * 3;
-    const resultData: TestResult[] = Object.entries(answers)
+    const resultData: TestResult[] = Object.entries(updatedAnswers)
       .map(([category, score]) => ({
         category,
         score: Math.round((score / maxScore) * 100),
@@ -224,6 +253,9 @@ export default function StudentPsychometricTestPage() {
 
     setResults(resultData);
     setTestCompleted(true);
+    
+    // Fetch AI guidance after results are calculated
+    fetchAIGuidance(resultData);
   };
 
   const progress = ((currentQuestion + 1) / psychometricQuestions.length) * 100;
@@ -347,10 +379,49 @@ export default function StudentPsychometricTestPage() {
             </CardContent>
           </Card>
 
-          {/* Career Recommendations */}
+          {/* AI-Powered Career Guidance */}
+          <Card className="border-primary/20">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                <CardTitle>AI-Powered Career Guidance</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoadingAI ? (
+                <div className="flex flex-col items-center justify-center py-8 gap-4">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <p className="text-muted-foreground">Generating personalized career guidance...</p>
+                </div>
+              ) : aiGuidance ? (
+                <div className="prose prose-sm max-w-none dark:prose-invert">
+                  {aiGuidance.split('\n').map((line, index) => {
+                    if (line.startsWith('## ') || (line.startsWith('**') && line.endsWith('**'))) {
+                      return <h3 key={index} className="text-lg font-semibold mt-4 mb-2 text-foreground">{line.replace(/##\s*|\*\*/g, '')}</h3>;
+                    }
+                    if (line.startsWith('- ') || line.startsWith('* ')) {
+                      return <p key={index} className="ml-4 mb-1 text-muted-foreground">• {line.slice(2)}</p>;
+                    }
+                    if (line.trim() === '') return null;
+                    return <p key={index} className="mb-2 text-muted-foreground">{line.replace(/\*\*/g, '')}</p>;
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">AI guidance could not be loaded</p>
+                  <Button variant="outline" onClick={() => fetchAIGuidance(results)}>
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Try Again
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Quick Career Paths */}
           <Card>
             <CardHeader>
-              <CardTitle>Recommended Career Paths</CardTitle>
+              <CardTitle>Quick Career Matches</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

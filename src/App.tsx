@@ -19,6 +19,7 @@ import ContentManagersPage from "./pages/institution/ContentManagersPage";
 import StudentsPage from "./pages/institution/StudentsPage";
 import CoursesPage from "./pages/institution/CoursesPage";
 import InstitutionProfilePage from "./pages/institution/ProfilePage";
+import EnrollmentRequestsPage from "./pages/institution/EnrollmentRequestsPage";
 
 // Teacher Pages
 import TeacherDashboard from "./pages/teacher/TeacherDashboard";
@@ -30,6 +31,7 @@ import TeacherProfilePage from "./pages/teacher/TeacherProfilePage";
 // Student Pages
 import StudentDashboard from "./pages/student/StudentDashboard";
 import StudentCoursesPage from "./pages/student/StudentCoursesPage";
+import StudentBrowseCoursesPage from "./pages/student/StudentBrowseCoursesPage";
 import StudentQuizzesPage from "./pages/student/StudentQuizzesPage";
 import StudentAssignmentsPage from "./pages/student/StudentAssignmentsPage";
 import StudentExamsPage from "./pages/student/StudentExamsPage";
@@ -87,6 +89,7 @@ function AppRoutes() {
       <Route path="/institution/content-managers" element={<ProtectedRoute allowedRoles={['institution']}><ContentManagersPage /></ProtectedRoute>} />
       <Route path="/institution/students" element={<ProtectedRoute allowedRoles={['institution']}><StudentsPage /></ProtectedRoute>} />
       <Route path="/institution/courses" element={<ProtectedRoute allowedRoles={['institution']}><CoursesPage /></ProtectedRoute>} />
+      <Route path="/institution/enrollment-requests" element={<ProtectedRoute allowedRoles={['institution']}><EnrollmentRequestsPage /></ProtectedRoute>} />
       <Route path="/institution/profile" element={<ProtectedRoute allowedRoles={['institution']}><InstitutionProfilePage /></ProtectedRoute>} />
 
       {/* Teacher Routes */}
@@ -100,6 +103,7 @@ function AppRoutes() {
       {/* Student Routes */}
       <Route path="/student" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />
       <Route path="/student/courses" element={<ProtectedRoute allowedRoles={['student']}><StudentCoursesPage /></ProtectedRoute>} />
+      <Route path="/student/browse-courses" element={<ProtectedRoute allowedRoles={['student']}><StudentBrowseCoursesPage /></ProtectedRoute>} />
       <Route path="/student/quizzes" element={<ProtectedRoute allowedRoles={['student']}><StudentQuizzesPage /></ProtectedRoute>} />
       <Route path="/student/assignments" element={<ProtectedRoute allowedRoles={['student']}><StudentAssignmentsPage /></ProtectedRoute>} />
       <Route path="/student/exams" element={<ProtectedRoute allowedRoles={['student']}><StudentExamsPage /></ProtectedRoute>} />

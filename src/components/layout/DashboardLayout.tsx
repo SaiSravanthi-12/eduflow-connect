@@ -37,6 +37,7 @@ const navItemsByRole: Record<string, NavItem[]> = {
     { icon: Users, label: 'Content Managers', href: '/institution/content-managers' },
     { icon: GraduationCap, label: 'Students', href: '/institution/students' },
     { icon: BookOpen, label: 'Courses', href: '/institution/courses' },
+    { icon: ClipboardList, label: 'Enrollment Requests', href: '/institution/enrollment-requests' },
     { icon: User, label: 'Profile', href: '/institution/profile' },
   ],
   teacher: [
@@ -49,7 +50,8 @@ const navItemsByRole: Record<string, NavItem[]> = {
   ],
   student: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/student' },
-    { icon: BookOpen, label: 'Courses', href: '/student/courses' },
+    { icon: BookOpen, label: 'My Courses', href: '/student/courses' },
+    { icon: Building2, label: 'Browse Courses', href: '/student/browse-courses' },
     { icon: ClipboardList, label: 'Quizzes', href: '/student/quizzes' },
     { icon: FileText, label: 'Assignments', href: '/student/assignments' },
     { icon: GraduationCap, label: 'Exams', href: '/student/exams' },

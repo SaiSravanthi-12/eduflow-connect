@@ -124,3 +124,16 @@ export interface StudentProgress {
   completedQuizzes: number;
   totalQuizzes: number;
 }
+
+export interface EnrollmentRequest {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  studentRegNo: string;
+  courseId: string;
+  courseName: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: Date;
+  processedAt?: Date;
+}

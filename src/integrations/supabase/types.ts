@@ -14,7 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      course_materials: {
+        Row: {
+          course_id: string
+          created_at: string
+          file_path: string | null
+          file_url: string
+          id: string
+          material_type: string
+          module_id: string
+          name: string
+          topic_id: string
+          updated_at: string
+          uploaded_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          file_path?: string | null
+          file_url: string
+          id?: string
+          material_type: string
+          module_id: string
+          name: string
+          topic_id: string
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          file_path?: string | null
+          file_url?: string
+          id?: string
+          material_type?: string
+          module_id?: string
+          name?: string
+          topic_id?: string
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

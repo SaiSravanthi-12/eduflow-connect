@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/common/PageHeader';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,31 +10,79 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   ArrowLeft, 
   Video, 
   FileText, 
   Upload, 
-  Check, 
-  ChevronDown,
   BookOpen,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 import { coursesSyllabusData, CourseSyllabus, SyllabusTopic } from '@/data/coursesSyllabusData';
+
+interface CourseMaterial {
+  id: string;
+  course_id: string;
+  module_id: string;
+  topic_id: string;
+  material_type: string;
+  name: string;
+  file_url: string;
+  file_path: string | null;
+  uploaded_at: string;
+}
 
 export default function ContentManagerCourseSyllabusPage() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [course, setCourse] = useState<CourseSyllabus | null>(() => {
+  const [course] = useState<CourseSyllabus | null>(() => {
     return coursesSyllabusData.find(c => c.id === courseId) || null;
   });
   
+  const [materials, setMaterials] = useState<CourseMaterial[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<{ moduleId: string; topic: SyllabusTopic } | null>(null);
   const [uploadType, setUploadType] = useState<'video' | 'document'>('video');
-  const [uploadForm, setUploadForm] = useState({ name: '', url: '' });
+  const [uploadForm, setUploadForm] = useState({ name: '' });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    if (courseId) {
+      fetchMaterials();
+    }
+  }, [courseId]);
+
+  const fetchMaterials = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('course_materials')
+        .select('*')
+        .eq('course_id', courseId);
+
+      if (error) throw error;
+      setMaterials(data || []);
+    } catch (error) {
+      console.error('Error fetching materials:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load course materials',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getMaterialForTopic = (topicId: string, type: 'video' | 'document') => {
+    return materials.find(m => m.topic_id === topicId && m.material_type === type);
+  };
 
   if (!course) {
     return (
@@ -50,58 +98,137 @@ export default function ContentManagerCourseSyllabusPage() {
   const handleUploadClick = (moduleId: string, topic: SyllabusTopic, type: 'video' | 'document') => {
     setSelectedTopic({ moduleId, topic });
     setUploadType(type);
-    setUploadForm({ 
-      name: topic.materials[type]?.name || '', 
-      url: topic.materials[type]?.url || '' 
-    });
+    const existingMaterial = getMaterialForTopic(topic.id, type);
+    setUploadForm({ name: existingMaterial?.name || '' });
+    setSelectedFile(null);
     setIsUploadDialogOpen(true);
   };
 
-  const handleUploadSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!selectedTopic || !course) return;
-
-    const updatedCourse = { ...course };
-    const moduleIndex = updatedCourse.modules.findIndex(m => m.id === selectedTopic.moduleId);
-    if (moduleIndex === -1) return;
-
-    const topicIndex = updatedCourse.modules[moduleIndex].topics.findIndex(
-      t => t.id === selectedTopic.topic.id
-    );
-    if (topicIndex === -1) return;
-
-    updatedCourse.modules[moduleIndex].topics[topicIndex].materials[uploadType] = {
-      name: uploadForm.name,
-      url: uploadForm.url,
-      uploadedAt: new Date(),
-    };
-
-    setCourse(updatedCourse);
-    setIsUploadDialogOpen(false);
-    setUploadForm({ name: '', url: '' });
-
-    toast({
-      title: `${uploadType === 'video' ? 'Video' : 'Document'} uploaded`,
-      description: `${uploadForm.name} has been added to "${selectedTopic.topic.name}"`,
-    });
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      if (!uploadForm.name) {
+        setUploadForm({ name: file.name.split('.')[0] });
+      }
+    }
   };
 
-  const handleRemoveMaterial = (moduleId: string, topicId: string, type: 'video' | 'document') => {
-    const updatedCourse = { ...course };
-    const moduleIndex = updatedCourse.modules.findIndex(m => m.id === moduleId);
-    if (moduleIndex === -1) return;
+  const handleUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedTopic || !course || !selectedFile) {
+      toast({
+        title: 'Error',
+        description: 'Please select a file to upload',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-    const topicIndex = updatedCourse.modules[moduleIndex].topics.findIndex(t => t.id === topicId);
-    if (topicIndex === -1) return;
+    setIsUploading(true);
 
-    delete updatedCourse.modules[moduleIndex].topics[topicIndex].materials[type];
-    setCourse(updatedCourse);
+    try {
+      // Upload file to storage
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${course.id}/${selectedTopic.moduleId}/${selectedTopic.topic.id}/${uploadType}_${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('course-materials')
+        .upload(fileName, selectedFile, { upsert: true });
 
-    toast({
-      title: 'Material removed',
-      description: `${type === 'video' ? 'Video' : 'Document'} has been removed.`,
-    });
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('course-materials')
+        .getPublicUrl(fileName);
+
+      // Check if material already exists
+      const existingMaterial = getMaterialForTopic(selectedTopic.topic.id, uploadType);
+
+      if (existingMaterial) {
+        // Update existing material
+        const { error: dbError } = await supabase
+          .from('course_materials')
+          .update({
+            name: uploadForm.name,
+            file_url: urlData.publicUrl,
+            file_path: fileName,
+            uploaded_at: new Date().toISOString(),
+          })
+          .eq('id', existingMaterial.id);
+
+        if (dbError) throw dbError;
+      } else {
+        // Insert new material
+        const { error: dbError } = await supabase
+          .from('course_materials')
+          .insert({
+            course_id: course.id,
+            module_id: selectedTopic.moduleId,
+            topic_id: selectedTopic.topic.id,
+            material_type: uploadType,
+            name: uploadForm.name,
+            file_url: urlData.publicUrl,
+            file_path: fileName,
+          });
+
+        if (dbError) throw dbError;
+      }
+
+      await fetchMaterials();
+      setIsUploadDialogOpen(false);
+      setUploadForm({ name: '' });
+      setSelectedFile(null);
+
+      toast({
+        title: `${uploadType === 'video' ? 'Video' : 'Document'} uploaded`,
+        description: `${uploadForm.name} has been added to "${selectedTopic.topic.name}"`,
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: 'Upload failed',
+        description: 'Failed to upload the file. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemoveMaterial = async (material: CourseMaterial) => {
+    try {
+      // Delete from storage if file_path exists
+      if (material.file_path) {
+        await supabase.storage
+          .from('course-materials')
+          .remove([material.file_path]);
+      }
+
+      // Delete from database
+      const { error } = await supabase
+        .from('course_materials')
+        .delete()
+        .eq('id', material.id);
+
+      if (error) throw error;
+
+      await fetchMaterials();
+
+      toast({
+        title: 'Material removed',
+        description: `${material.material_type === 'video' ? 'Video' : 'Document'} has been removed.`,
+      });
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to remove material',
+        variant: 'destructive',
+      });
+    }
   };
 
   const getLevelColor = (level: string) => {
@@ -119,18 +246,25 @@ export default function ContentManagerCourseSyllabusPage() {
 
   const getUploadedCount = () => {
     let total = 0;
-    let uploaded = 0;
     course.modules.forEach(module => {
-      module.topics.forEach(topic => {
+      module.topics.forEach(() => {
         total += 2; // video + document slots
-        if (topic.materials.video) uploaded++;
-        if (topic.materials.document) uploaded++;
       });
     });
-    return { total, uploaded };
+    return { total, uploaded: materials.length };
   };
 
   const stats = getUploadedCount();
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -190,64 +324,69 @@ export default function ContentManagerCourseSyllabusPage() {
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4">
                 <div className="space-y-3 pt-2">
-                  {module.topics.map((topic) => (
-                    <div
-                      key={topic.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50"
-                    >
-                      <span className="font-medium text-sm flex-1">{topic.name}</span>
-                      
-                      <div className="flex items-center gap-2">
-                        {/* Video Upload/Display */}
-                        {topic.materials.video ? (
-                          <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 text-primary text-xs">
-                            <Video className="w-3 h-3" />
-                            <span className="max-w-20 truncate">{topic.materials.video.name}</span>
-                            <button
-                              onClick={() => handleRemoveMaterial(module.id, topic.id, 'video')}
-                              className="ml-1 hover:text-destructive"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1 text-xs h-7"
-                            onClick={() => handleUploadClick(module.id, topic, 'video')}
-                          >
-                            <Video className="w-3 h-3" />
-                            <Upload className="w-3 h-3" />
-                          </Button>
-                        )}
+                  {module.topics.map((topic) => {
+                    const videoMaterial = getMaterialForTopic(topic.id, 'video');
+                    const documentMaterial = getMaterialForTopic(topic.id, 'document');
 
-                        {/* Document Upload/Display */}
-                        {topic.materials.document ? (
-                          <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-accent/10 text-accent text-xs">
-                            <FileText className="w-3 h-3" />
-                            <span className="max-w-20 truncate">{topic.materials.document.name}</span>
-                            <button
-                              onClick={() => handleRemoveMaterial(module.id, topic.id, 'document')}
-                              className="ml-1 hover:text-destructive"
+                    return (
+                      <div
+                        key={topic.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50"
+                      >
+                        <span className="font-medium text-sm flex-1">{topic.name}</span>
+                        
+                        <div className="flex items-center gap-2">
+                          {/* Video Upload/Display */}
+                          {videoMaterial ? (
+                            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 text-primary text-xs">
+                              <Video className="w-3 h-3" />
+                              <span className="max-w-20 truncate">{videoMaterial.name}</span>
+                              <button
+                                onClick={() => handleRemoveMaterial(videoMaterial)}
+                                className="ml-1 hover:text-destructive"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1 text-xs h-7"
+                              onClick={() => handleUploadClick(module.id, topic, 'video')}
                             >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1 text-xs h-7"
-                            onClick={() => handleUploadClick(module.id, topic, 'document')}
-                          >
-                            <FileText className="w-3 h-3" />
-                            <Upload className="w-3 h-3" />
-                          </Button>
-                        )}
+                              <Video className="w-3 h-3" />
+                              <Upload className="w-3 h-3" />
+                            </Button>
+                          )}
+
+                          {/* Document Upload/Display */}
+                          {documentMaterial ? (
+                            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-accent/10 text-accent text-xs">
+                              <FileText className="w-3 h-3" />
+                              <span className="max-w-20 truncate">{documentMaterial.name}</span>
+                              <button
+                                onClick={() => handleRemoveMaterial(documentMaterial)}
+                                className="ml-1 hover:text-destructive"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1 text-xs h-7"
+                              onClick={() => handleUploadClick(module.id, topic, 'document')}
+                            >
+                              <FileText className="w-3 h-3" />
+                              <Upload className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </AccordionContent>
             </AccordionItem>
@@ -281,19 +420,45 @@ export default function ContentManagerCourseSyllabusPage() {
               <Label>Name</Label>
               <Input
                 value={uploadForm.name}
-                onChange={(e) => setUploadForm({ ...uploadForm, name: e.target.value })}
+                onChange={(e) => setUploadForm({ name: e.target.value })}
                 placeholder={`Enter ${uploadType} name`}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label>URL</Label>
-              <Input
-                value={uploadForm.url}
-                onChange={(e) => setUploadForm({ ...uploadForm, url: e.target.value })}
-                placeholder={uploadType === 'video' ? 'https://youtube.com/...' : 'https://drive.google.com/...'}
-                required
+              <Label>File</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFileChange}
+                accept={uploadType === 'video' ? 'video/*' : '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx'}
+                className="hidden"
               />
+              <div 
+                className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {selectedFile ? (
+                  <div className="flex items-center justify-center gap-2">
+                    {uploadType === 'video' ? (
+                      <Video className="w-5 h-5 text-primary" />
+                    ) : (
+                      <FileText className="w-5 h-5 text-accent" />
+                    )}
+                    <span className="font-medium">{selectedFile.name}</span>
+                  </div>
+                ) : (
+                  <div>
+                    <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Click to select a {uploadType}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {uploadType === 'video' ? 'MP4, MOV, AVI, etc.' : 'PDF, DOC, DOCX, PPT, XLS'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex gap-3">
               <Button 
@@ -301,12 +466,17 @@ export default function ContentManagerCourseSyllabusPage() {
                 variant="outline" 
                 onClick={() => setIsUploadDialogOpen(false)} 
                 className="flex-1"
+                disabled={isUploading}
               >
                 Cancel
               </Button>
-              <Button type="submit" className="flex-1 gap-2">
-                <Upload className="w-4 h-4" />
-                Upload
+              <Button type="submit" className="flex-1 gap-2" disabled={isUploading || !selectedFile}>
+                {isUploading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                {isUploading ? 'Uploading...' : 'Upload'}
               </Button>
             </div>
           </form>

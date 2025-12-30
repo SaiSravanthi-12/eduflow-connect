@@ -24,6 +24,7 @@ import EnrollmentRequestsPage from "./pages/institution/EnrollmentRequestsPage";
 // Teacher Pages
 import TeacherDashboard from "./pages/teacher/TeacherDashboard";
 import TeacherCoursesPage from "./pages/teacher/TeacherCoursesPage";
+import ContentManagerCourseSyllabusPage from "./pages/teacher/ContentManagerCourseSyllabusPage";
 import TeacherStudentsPage from "./pages/teacher/TeacherStudentsPage";
 import TeacherResultsPage from "./pages/teacher/TeacherResultsPage";
 import TeacherProfilePage from "./pages/teacher/TeacherProfilePage";
@@ -96,6 +97,7 @@ function AppRoutes() {
       {/* Teacher Routes */}
       <Route path="/teacher" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherDashboard /></ProtectedRoute>} />
       <Route path="/teacher/courses" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherCoursesPage /></ProtectedRoute>} />
+      <Route path="/teacher/courses/:courseId" element={<ProtectedRoute allowedRoles={['teacher']}><ContentManagerCourseSyllabusPage /></ProtectedRoute>} />
       <Route path="/teacher/students" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherStudentsPage /></ProtectedRoute>} />
       <Route path="/teacher/assignments" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherCoursesPage /></ProtectedRoute>} />
       <Route path="/teacher/results" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherResultsPage /></ProtectedRoute>} />

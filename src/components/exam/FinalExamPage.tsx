@@ -127,7 +127,7 @@ const FinalExamContent: React.FC<FinalExamContentProps> = ({
     // Save exam attempt
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      await supabase.from('exam_attempts').insert({
+      await supabase.from('exam_attempts').insert([{
         user_id: user.id,
         course_id: courseId,
         mcq_answers: mcqAnswers,
@@ -142,7 +142,7 @@ const FinalExamContent: React.FC<FinalExamContentProps> = ({
         started_at: new Date(Date.now() - (timeLimit * 60 - timeRemaining) * 1000).toISOString(),
         completed_at: new Date().toISOString(),
         auto_submitted: autoSubmit,
-      });
+      }] as any);
     }
 
     setExamResult({ passed, score: totalScore });

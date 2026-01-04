@@ -1,21 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-interface VideoProgress {
-  materialId: string;
-  watchTimeSeconds: number;
-  totalDurationSeconds: number;
+export interface VideoProgressRecord {
+  id: string;
+  user_id: string;
+  course_id: string;
+  module_id: string;
+  topic_id: string;
+  material_id: string | null;
+  watch_time_seconds: number;
+  total_duration_seconds: number;
   completed: boolean;
-  completedAt: string | null;
+  completed_at: string | null;
 }
 
-export const useVideoProgress = (courseId: string) => {
-  const [videoProgress, setVideoProgress] = useState<Record<string, VideoProgress>>({});
+export const useVideoProgress = (userId: string | null, courseId: string | undefined) => {
+  const [videoProgress, setVideoProgress] = useState<VideoProgressRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProgress = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (!userId || !courseId) {
       setIsLoading(false);
       return;
     }
@@ -23,7 +27,7 @@ export const useVideoProgress = (courseId: string) => {
     const { data, error } = await supabase
       .from('student_video_progress')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('course_id', courseId);
 
     if (error) {
@@ -32,44 +36,21 @@ export const useVideoProgress = (courseId: string) => {
       return;
     }
 
-    const progressMap: Record<string, VideoProgress> = {};
-    data?.forEach(p => {
-      if (p.material_id) {
-        progressMap[p.material_id] = {
-          materialId: p.material_id,
-          watchTimeSeconds: p.watch_time_seconds,
-          totalDurationSeconds: p.total_duration_seconds,
-          completed: p.completed,
-          completedAt: p.completed_at,
-        };
-      }
-    });
-
-    setVideoProgress(progressMap);
+    setVideoProgress(data || []);
     setIsLoading(false);
-  }, [courseId]);
+  }, [userId, courseId]);
 
   useEffect(() => {
     fetchProgress();
   }, [fetchProgress]);
 
-  const isVideoCompleted = useCallback((materialId: string) => {
-    return videoProgress[materialId]?.completed || false;
-  }, [videoProgress]);
-
-  const getVideoProgress = useCallback((materialId: string) => {
-    return videoProgress[materialId] || null;
-  }, [videoProgress]);
-
-  const refreshProgress = useCallback(() => {
-    fetchProgress();
+  const refetch = useCallback(() => {
+    return fetchProgress();
   }, [fetchProgress]);
 
   return {
     videoProgress,
     isLoading,
-    isVideoCompleted,
-    getVideoProgress,
-    refreshProgress,
+    refetch,
   };
 };

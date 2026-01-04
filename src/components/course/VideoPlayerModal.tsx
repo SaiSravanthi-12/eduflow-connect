@@ -6,32 +6,32 @@ import { Play, Pause, Volume2, VolumeX, ChevronRight, CheckCircle2, Loader2 } fr
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-interface VideoPlayerModalProps {
+export interface VideoPlayerModalProps {
   isOpen: boolean;
   onClose: () => void;
   videoUrl: string;
-  videoName: string;
+  videoTitle: string;
+  topicName: string;
   materialId: string;
   courseId: string;
   moduleId: string;
   topicId: string;
+  userId: string;
   onComplete: () => void;
-  hasNextVideo: boolean;
-  onNextVideo: () => void;
 }
 
 export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   isOpen,
   onClose,
   videoUrl,
-  videoName,
+  videoTitle,
+  topicName,
   materialId,
   courseId,
   moduleId,
   topicId,
+  userId,
   onComplete,
-  hasNextVideo,
-  onNextVideo,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -47,13 +47,12 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   // Load saved progress on mount
   useEffect(() => {
     const loadProgress = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!userId || !materialId) return;
 
       const { data } = await supabase
         .from('student_video_progress')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('material_id', materialId)
         .maybeSingle();
 
@@ -69,7 +68,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     if (isOpen && materialId) {
       loadProgress();
     }
-  }, [isOpen, materialId]);
+  }, [isOpen, materialId, userId]);
 
   // Save progress periodically
   const saveProgress = useCallback(async (watchTime: number, completed: boolean = false) => {
@@ -77,15 +76,14 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     if (!completed && now - lastSaveTime.current < 10000) return; // Save every 10 seconds
     lastSaveTime.current = now;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!userId) return;
 
     setIsSaving(true);
     try {
       const { error } = await supabase
         .from('student_video_progress')
-        .upsert({
-          user_id: user.id,
+        .upsert([{
+          user_id: userId,
           material_id: materialId,
           course_id: courseId,
           module_id: moduleId,
@@ -94,7 +92,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           total_duration_seconds: Math.floor(duration),
           completed,
           completed_at: completed ? new Date().toISOString() : null,
-        }, {
+        }] as any, {
           onConflict: 'user_id,material_id'
         });
 
@@ -110,7 +108,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     } finally {
       setIsSaving(false);
     }
-  }, [materialId, courseId, moduleId, topicId, duration, isCompleted, onComplete]);
+  }, [materialId, courseId, moduleId, topicId, duration, isCompleted, onComplete, userId]);
 
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
@@ -183,10 +181,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       <DialogContent className="max-w-4xl w-full p-0 overflow-hidden bg-card">
         <DialogHeader className="p-4 pb-0">
           <DialogTitle className="flex items-center gap-2 text-foreground">
-            {videoName}
+            {videoTitle}
             {isCompleted && <CheckCircle2 className="h-5 w-5 text-success" />}
             {isSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           </DialogTitle>
+          <p className="text-sm text-muted-foreground">{topicName}</p>
         </DialogHeader>
         
         <div className="relative bg-background">
@@ -236,15 +235,12 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
               </div>
               
               <div className="flex items-center gap-2">
-                {isCompleted && hasNextVideo && (
+                {isCompleted && (
                   <Button
-                    onClick={() => {
-                      handleClose();
-                      onNextVideo();
-                    }}
+                    onClick={handleClose}
                     className="gap-2"
                   >
-                    Next Video <ChevronRight className="h-4 w-4" />
+                    Done <CheckCircle2 className="h-4 w-4" />
                   </Button>
                 )}
               </div>

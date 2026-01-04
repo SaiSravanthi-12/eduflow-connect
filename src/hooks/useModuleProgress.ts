@@ -1,116 +1,84 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-interface ModuleProgress {
-  moduleId: string;
-  videosCompleted: number;
-  totalVideos: number;
-  quizUnlocked: boolean;
-  quizPassed: boolean;
-  quizScore: number | null;
+export interface ModuleProgressRecord {
+  id: string;
+  user_id: string;
+  course_id: string;
+  module_id: string;
+  videos_completed: number;
+  total_videos: number;
+  quiz_unlocked: boolean;
+  quiz_passed: boolean;
+  quiz_score: number | null;
+  quiz_completed_at: string | null;
 }
 
-export const useModuleProgress = (courseId: string) => {
-  const [moduleProgress, setModuleProgress] = useState<Record<string, ModuleProgress>>({});
+export interface CourseProgressRecord {
+  id: string;
+  user_id: string;
+  course_id: string;
+  modules_completed: number;
+  total_modules: number;
+  exam_unlocked: boolean;
+  exam_passed: boolean | null;
+  exam_score: number | null;
+  completed_at: string | null;
+}
+
+export const useModuleProgress = (userId: string | null, courseId: string | undefined) => {
+  const [moduleProgress, setModuleProgress] = useState<ModuleProgressRecord[]>([]);
+  const [courseProgress, setCourseProgress] = useState<CourseProgressRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProgress = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (!userId || !courseId) {
       setIsLoading(false);
       return;
     }
 
-    const { data, error } = await supabase
+    // Fetch module progress
+    const { data: moduleData, error: moduleError } = await supabase
       .from('student_module_progress')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('course_id', courseId);
 
-    if (error) {
-      console.error('Error fetching module progress:', error);
-      setIsLoading(false);
-      return;
+    if (moduleError) {
+      console.error('Error fetching module progress:', moduleError);
+    } else {
+      setModuleProgress(moduleData || []);
     }
 
-    const progressMap: Record<string, ModuleProgress> = {};
-    data?.forEach(p => {
-      progressMap[p.module_id] = {
-        moduleId: p.module_id,
-        videosCompleted: p.videos_completed,
-        totalVideos: p.total_videos,
-        quizUnlocked: p.quiz_unlocked,
-        quizPassed: p.quiz_passed,
-        quizScore: p.quiz_score,
-      };
-    });
+    // Fetch course progress
+    const { data: courseData, error: courseError } = await supabase
+      .from('student_course_progress')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('course_id', courseId)
+      .maybeSingle();
 
-    setModuleProgress(progressMap);
+    if (courseError) {
+      console.error('Error fetching course progress:', courseError);
+    } else {
+      setCourseProgress(courseData);
+    }
+
     setIsLoading(false);
-  }, [courseId]);
+  }, [userId, courseId]);
 
   useEffect(() => {
     fetchProgress();
   }, [fetchProgress]);
 
-  const isModuleUnlocked = useCallback((moduleId: string, moduleIndex: number, allModuleIds: string[]) => {
-    // First module is always unlocked
-    if (moduleIndex === 0) return true;
-    
-    // Check if previous module's quiz is passed
-    const prevModuleId = allModuleIds[moduleIndex - 1];
-    return moduleProgress[prevModuleId]?.quizPassed || false;
-  }, [moduleProgress]);
-
-  const isQuizUnlocked = useCallback((moduleId: string) => {
-    return moduleProgress[moduleId]?.quizUnlocked || false;
-  }, [moduleProgress]);
-
-  const isQuizPassed = useCallback((moduleId: string) => {
-    return moduleProgress[moduleId]?.quizPassed || false;
-  }, [moduleProgress]);
-
-  const getModuleProgress = useCallback((moduleId: string) => {
-    return moduleProgress[moduleId] || null;
-  }, [moduleProgress]);
-
-  const updateModuleProgress = useCallback(async (
-    moduleId: string, 
-    videosCompleted: number, 
-    totalVideos: number,
-    quizUnlocked: boolean
-  ) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    await supabase
-      .from('student_module_progress')
-      .upsert({
-        user_id: user.id,
-        course_id: courseId,
-        module_id: moduleId,
-        videos_completed: videosCompleted,
-        total_videos: totalVideos,
-        quiz_unlocked: quizUnlocked,
-      }, {
-        onConflict: 'user_id,course_id,module_id'
-      });
-
-    fetchProgress();
-  }, [courseId, fetchProgress]);
-
-  const refreshProgress = useCallback(() => {
-    fetchProgress();
+  const refetch = useCallback(() => {
+    return fetchProgress();
   }, [fetchProgress]);
 
   return {
     moduleProgress,
+    courseProgress,
     isLoading,
-    isModuleUnlocked,
-    isQuizUnlocked,
-    isQuizPassed,
-    getModuleProgress,
-    updateModuleProgress,
-    refreshProgress,
+    refetch,
   };
 };

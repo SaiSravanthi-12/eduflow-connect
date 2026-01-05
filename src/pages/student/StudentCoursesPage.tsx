@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { CourseProgressCard } from '@/components/course/CourseProgressCard';
 import { ModuleQuizCard } from '@/components/course/ModuleQuizCard';
 import { useVideoProgress, VideoProgressRecord } from '@/hooks/useVideoProgress';
 import { useModuleProgress, ModuleProgressRecord } from '@/hooks/useModuleProgress';
+import { useCourseInitialization } from '@/hooks/useCourseInitialization';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -50,6 +51,7 @@ export default function StudentCoursesPage() {
   // Get progress hooks
   const { videoProgress, refetch: refetchVideoProgress } = useVideoProgress(userId, selectedCourse?.id);
   const { moduleProgress, courseProgress, refetch: refetchModuleProgress } = useModuleProgress(userId, selectedCourse?.id);
+  const { initializeCourseProgress, updateVideoCompletion } = useCourseInitialization();
 
   // Fetch current user
   useEffect(() => {
@@ -61,6 +63,17 @@ export default function StudentCoursesPage() {
     };
     fetchUser();
   }, []);
+
+  // Initialize course progress when course is selected
+  useEffect(() => {
+    const initProgress = async () => {
+      if (selectedCourse && userId) {
+        await initializeCourseProgress(userId, selectedCourse);
+        await refetchModuleProgress();
+      }
+    };
+    initProgress();
+  }, [selectedCourse, userId, initializeCourseProgress, refetchModuleProgress]);
 
   useEffect(() => {
     if (selectedCourse) {
@@ -177,15 +190,21 @@ export default function StudentCoursesPage() {
   };
 
   // Handle video completion
-  const handleVideoComplete = async () => {
+  const handleVideoComplete = useCallback(async (moduleId?: string) => {
+    if (userId && selectedCourse && moduleId) {
+      await updateVideoCompletion(userId, selectedCourse.id, moduleId, selectedCourse);
+    }
     await refetchVideoProgress();
     await refetchModuleProgress();
     toast.success('Video completed! You can now proceed to the next content.');
-  };
+  }, [userId, selectedCourse, updateVideoCompletion, refetchVideoProgress, refetchModuleProgress]);
 
   // Handle quiz completion
   const handleQuizComplete = async (passed: boolean) => {
-    await refetchModuleProgress();
+    if (userId && selectedCourse) {
+      // Refresh progress after quiz completion
+      await refetchModuleProgress();
+    }
     setActiveQuiz(null);
     if (passed) {
       toast.success('Quiz passed! Next module unlocked.');

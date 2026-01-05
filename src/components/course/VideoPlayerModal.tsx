@@ -17,7 +17,7 @@ export interface VideoPlayerModalProps {
   moduleId: string;
   topicId: string;
   userId: string;
-  onComplete: () => void;
+  onComplete: (moduleId: string) => void;
 }
 
 export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
@@ -100,7 +100,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       
       if (completed && !isCompleted) {
         setIsCompleted(true);
-        onComplete();
+        onComplete(moduleId);
         toast.success('Video completed!');
       }
     } catch (error) {

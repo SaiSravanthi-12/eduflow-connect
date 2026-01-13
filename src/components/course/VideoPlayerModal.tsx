@@ -193,6 +193,8 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
             ref={videoRef}
             src={videoUrl}
             className="w-full aspect-video"
+            controls
+            controlsList="nodownload"
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onPlay={() => setIsPlaying(true)}
@@ -202,6 +204,10 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
               if (!isCompleted) {
                 saveProgress(duration, true);
               }
+            }}
+            onError={(e) => {
+              console.error('Video load error:', e);
+              toast.error('Failed to load video. Please try again.');
             }}
           />
           

@@ -418,7 +418,32 @@ export default function StudentCoursesPage() {
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="px-4 pb-4">
-                      <div className="space-y-3 pt-2">
+                      {/* Topic Progress Strip */}
+                      <div className="flex items-center gap-1 mb-4 pt-2">
+                        <span className="text-xs text-muted-foreground mr-2">Topics:</span>
+                        {module.topics.map((topic, idx) => {
+                          const completed = isVideoCompleted(topic.id);
+                          const unlocked = isTopicUnlocked(module.id, idx, module);
+                          return (
+                            <div
+                              key={topic.id}
+                              className={`h-2 flex-1 rounded-full transition-colors ${
+                                completed 
+                                  ? 'bg-success' 
+                                  : unlocked 
+                                    ? 'bg-primary/30' 
+                                    : 'bg-muted'
+                              }`}
+                              title={`${topic.name}${completed ? ' (Completed)' : unlocked ? ' (In Progress)' : ' (Locked)'}`}
+                            />
+                          );
+                        })}
+                        <span className="text-xs text-muted-foreground ml-2">
+                          {module.topics.filter(t => isVideoCompleted(t.id)).length}/{module.topics.length}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-3">
                         {module.topics.map((topic, topicIndex) => {
                           const videoMaterial = getMaterialForTopic(topic.id, 'video');
                           const documentMaterial = getMaterialForTopic(topic.id, 'document');

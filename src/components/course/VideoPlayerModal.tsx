@@ -36,6 +36,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -43,6 +44,8 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const [isCompleted, setIsCompleted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const lastSaveTime = useRef(0);
+
+  const speedOptions = [0.5, 1, 1.5, 2];
 
   // Load saved progress on mount
   useEffect(() => {
@@ -162,6 +165,19 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     }
   };
 
+  const changeSpeed = (speed: number) => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = speed;
+      setPlaybackSpeed(speed);
+    }
+  };
+
+  const cycleSpeed = () => {
+    const currentIndex = speedOptions.indexOf(playbackSpeed);
+    const nextIndex = (currentIndex + 1) % speedOptions.length;
+    changeSpeed(speedOptions[nextIndex]);
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -232,7 +248,17 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   onClick={toggleMute}
                   className="text-foreground hover:bg-foreground/10"
                 >
-                  {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                </Button>
+                
+                {/* Playback Speed Control */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={cycleSpeed}
+                  className="text-foreground hover:bg-foreground/10 px-2 min-w-[48px] font-mono text-sm"
+                >
+                  {playbackSpeed}x
                 </Button>
                 
                 <span className="text-sm text-muted-foreground">

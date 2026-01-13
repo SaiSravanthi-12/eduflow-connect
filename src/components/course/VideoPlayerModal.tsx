@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Play, Pause, Volume2, VolumeX, ChevronRight, CheckCircle2, Loader2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -34,37 +34,51 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   onComplete,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [progress, setProgress] = useState(0);
+  const [playbackSpeed, setPlaybackSpeed] = useState('1');
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [maxWatchedTime, setMaxWatchedTime] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const lastSaveTime = useRef(0);
 
-  const speedOptions = [0.5, 1, 1.5, 2];
+  const speedOptions = ['0.5', '1', '1.5', '2'];
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setIsLoading(true);
+      setHasError(false);
+      setCurrentTime(0);
+      setDuration(0);
+    }
+  }, [isOpen, videoUrl]);
 
   // Load saved progress on mount
   useEffect(() => {
     const loadProgress = async () => {
       if (!userId || !materialId) return;
 
-      const { data } = await supabase
-        .from('student_video_progress')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('material_id', materialId)
-        .maybeSingle();
+      try {
+        const { data } = await supabase
+          .from('student_video_progress')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('material_id', materialId)
+          .maybeSingle();
 
-      if (data) {
-        setMaxWatchedTime(data.watch_time_seconds);
-        setIsCompleted(data.completed);
-        if (videoRef.current && data.watch_time_seconds > 0) {
-          videoRef.current.currentTime = data.watch_time_seconds;
+        if (data) {
+          setMaxWatchedTime(data.watch_time_seconds);
+          setIsCompleted(data.completed);
+          // Set video position after it loads
+          if (videoRef.current && data.watch_time_seconds > 0 && !data.completed) {
+            videoRef.current.currentTime = Math.min(data.watch_time_seconds, videoRef.current.duration || data.watch_time_seconds);
+          }
         }
+      } catch (error) {
+        console.error('Error loading progress:', error);
       }
     };
 
@@ -119,22 +133,21 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     const current = videoRef.current.currentTime;
     const videoDuration = videoRef.current.duration;
     
-    // Prevent seeking ahead
-    if (current > maxWatchedTime + 2) {
+    // Prevent seeking ahead (allow 3 second buffer for seeking tolerance)
+    if (current > maxWatchedTime + 3) {
       videoRef.current.currentTime = maxWatchedTime;
       toast.warning('You cannot skip ahead in the video');
       return;
     }
 
     setCurrentTime(current);
-    setProgress((current / videoDuration) * 100);
     
     if (current > maxWatchedTime) {
       setMaxWatchedTime(current);
     }
 
-    // Check for completion (95% watched to account for buffering issues)
-    if (current >= videoDuration * 0.95 && !isCompleted) {
+    // Check for completion (90% watched to account for buffering issues)
+    if (videoDuration > 0 && current >= videoDuration * 0.9 && !isCompleted) {
       saveProgress(current, true);
     } else {
       saveProgress(current, false);
@@ -144,58 +157,36 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
+      setIsLoading(false);
+      // Apply saved playback speed
+      videoRef.current.playbackRate = parseFloat(playbackSpeed);
     }
   };
 
-  const togglePlay = () => {
+  const handleSpeedChange = (speed: string) => {
+    setPlaybackSpeed(speed);
     if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+      videoRef.current.playbackRate = parseFloat(speed);
     }
-  };
-
-  const toggleMute = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
-    }
-  };
-
-  const changeSpeed = (speed: number) => {
-    if (videoRef.current) {
-      videoRef.current.playbackRate = speed;
-      setPlaybackSpeed(speed);
-    }
-  };
-
-  const cycleSpeed = () => {
-    const currentIndex = speedOptions.indexOf(playbackSpeed);
-    const nextIndex = (currentIndex + 1) % speedOptions.length;
-    changeSpeed(speedOptions[nextIndex]);
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const handleClose = () => {
     if (videoRef.current) {
       videoRef.current.pause();
-      setIsPlaying(false);
+      // Save progress on close
+      if (currentTime > 0 && !isCompleted) {
+        saveProgress(currentTime, false);
+      }
     }
     onClose();
   };
 
+  const progress = duration > 0 ? Math.round((currentTime / duration) * 100) : 0;
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl w-full p-0 overflow-hidden bg-card">
-        <DialogHeader className="p-4 pb-0">
+        <DialogHeader className="p-4 pb-2">
           <DialogTitle className="flex items-center gap-2 text-foreground">
             {videoTitle}
             {isCompleted && <CheckCircle2 className="h-5 w-5 text-success" />}
@@ -204,96 +195,94 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           <p className="text-sm text-muted-foreground">{topicName}</p>
         </DialogHeader>
         
-        <div className="relative bg-background">
+        <div className="relative bg-black">
+          {isLoading && !hasError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Loading video...</p>
+              </div>
+            </div>
+          )}
+          
+          {hasError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
+              <div className="flex flex-col items-center gap-3 text-center p-4">
+                <AlertCircle className="h-12 w-12 text-destructive" />
+                <p className="text-sm text-muted-foreground">
+                  Failed to load video. Please try again.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(videoUrl, '_blank')}
+                  className="gap-2"
+                >
+                  Open Video in New Tab
+                </Button>
+              </div>
+            </div>
+          )}
+          
           <video
             ref={videoRef}
             src={videoUrl}
             className="w-full aspect-video"
             controls
-            controlsList="nodownload"
+            controlsList="nodownload nofullscreen"
+            disablePictureInPicture
+            playsInline
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
+            onCanPlay={() => setIsLoading(false)}
             onEnded={() => {
-              setIsPlaying(false);
               if (!isCompleted) {
                 saveProgress(duration, true);
               }
             }}
             onError={(e) => {
               console.error('Video load error:', e);
-              toast.error('Failed to load video. Please try again.');
+              setIsLoading(false);
+              setHasError(true);
             }}
           />
-          
-          {/* Video Controls */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/90 to-transparent p-4">
-            <Progress value={progress} className="h-1 mb-3" />
-            
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={togglePlay}
-                  className="text-foreground hover:bg-foreground/10"
-                >
-                  {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleMute}
-                  className="text-foreground hover:bg-foreground/10"
-                >
-                {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-                </Button>
-                
-                {/* Playback Speed Control */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={cycleSpeed}
-                  className="text-foreground hover:bg-foreground/10 px-2 min-w-[48px] font-mono text-sm"
-                >
-                  {playbackSpeed}x
-                </Button>
-                
-                <span className="text-sm text-muted-foreground">
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </span>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                {isCompleted && (
-                  <Button
-                    onClick={handleClose}
-                    className="gap-2"
-                  >
-                    Done <CheckCircle2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
         
         <div className="p-4 border-t border-border">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              Progress: {Math.round(progress)}% watched
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-muted-foreground">
+                Progress: {progress}% watched
+              </div>
+              
+              {/* Playback Speed */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Speed:</span>
+                <Select value={playbackSpeed} onValueChange={handleSpeedChange}>
+                  <SelectTrigger className="w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {speedOptions.map((speed) => (
+                      <SelectItem key={speed} value={speed}>
+                        {speed}x
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            {isCompleted ? (
-              <span className="flex items-center gap-1 text-success text-sm font-medium">
-                <CheckCircle2 className="h-4 w-4" /> Completed
-              </span>
-            ) : (
-              <span className="text-muted-foreground text-sm">
-                Watch to 100% to unlock next content
-              </span>
-            )}
+            
+            <div className="flex items-center gap-2">
+              {isCompleted ? (
+                <span className="flex items-center gap-1 text-success text-sm font-medium">
+                  <CheckCircle2 className="h-4 w-4" /> Completed
+                </span>
+              ) : (
+                <span className="text-muted-foreground text-sm">
+                  Watch to 90% to complete
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>

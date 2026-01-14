@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertCircle, Maximize, Minimize, Play, Pause, SkipBack, SkipForward, Keyboard } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -35,6 +36,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   onComplete,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
   const [playbackSpeed, setPlaybackSpeed] = useState('1');
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -45,9 +47,15 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const [hasError, setHasError] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [pendingCompletion, setPendingCompletion] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showResumeToast, setShowResumeToast] = useState(false);
+  const [savedPosition, setSavedPosition] = useState(0);
   const lastSaveTime = useRef(0);
+  const hasResumed = useRef(false);
 
   const speedOptions = ['0.5', '1', '1.5', '2'];
+  const speedMap: Record<string, string> = { '1': '0.5', '2': '1', '3': '1.5', '4': '2' };
 
   // Reset state when modal opens
   useEffect(() => {
@@ -58,6 +66,9 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       setDuration(0);
       setShowCompletionDialog(false);
       setPendingCompletion(false);
+      setIsPlaying(false);
+      setShowResumeToast(false);
+      hasResumed.current = false;
     }
   }, [isOpen, videoUrl]);
 
@@ -77,9 +88,10 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
         if (data) {
           setMaxWatchedTime(data.watch_time_seconds);
           setIsCompleted(data.completed);
-          // Set video position after it loads
-          if (videoRef.current && data.watch_time_seconds > 0 && !data.completed) {
-            videoRef.current.currentTime = Math.min(data.watch_time_seconds, videoRef.current.duration || data.watch_time_seconds);
+          // Store saved position for resume feature
+          if (data.watch_time_seconds > 0 && !data.completed) {
+            setSavedPosition(data.watch_time_seconds);
+            setShowResumeToast(true);
           }
         }
       } catch (error) {
@@ -91,6 +103,132 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       loadProgress();
     }
   }, [isOpen, materialId, userId]);
+
+  // Handle resume when video is ready
+  const handleCanPlay = useCallback(() => {
+    setIsLoading(false);
+    if (savedPosition > 0 && !hasResumed.current && videoRef.current) {
+      hasResumed.current = true;
+      videoRef.current.currentTime = savedPosition;
+      toast.info(`Resuming from ${formatTime(savedPosition)}`, {
+        duration: 3000,
+        action: {
+          label: 'Start Over',
+          onClick: () => {
+            if (videoRef.current) {
+              videoRef.current.currentTime = 0;
+            }
+          }
+        }
+      });
+    }
+  }, [savedPosition]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      const video = videoRef.current;
+      if (!video) return;
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          if (video.paused) {
+            video.play();
+          } else {
+            video.pause();
+          }
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          video.currentTime = Math.max(0, video.currentTime - 5);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          // Only allow seeking within watched time
+          const newTime = Math.min(video.currentTime + 5, maxWatchedTime + 3);
+          video.currentTime = newTime;
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          video.volume = Math.min(1, video.volume + 0.1);
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          video.volume = Math.max(0, video.volume - 0.1);
+          break;
+        case 'Digit1':
+        case 'Numpad1':
+          e.preventDefault();
+          handleSpeedChange('0.5');
+          toast.info('Speed: 0.5x');
+          break;
+        case 'Digit2':
+        case 'Numpad2':
+          e.preventDefault();
+          handleSpeedChange('1');
+          toast.info('Speed: 1x');
+          break;
+        case 'Digit3':
+        case 'Numpad3':
+          e.preventDefault();
+          handleSpeedChange('1.5');
+          toast.info('Speed: 1.5x');
+          break;
+        case 'Digit4':
+        case 'Numpad4':
+          e.preventDefault();
+          handleSpeedChange('2');
+          toast.info('Speed: 2x');
+          break;
+        case 'KeyF':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case 'KeyM':
+          e.preventDefault();
+          video.muted = !video.muted;
+          toast.info(video.muted ? 'Muted' : 'Unmuted');
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, maxWatchedTime]);
+
+  // Fullscreen change listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // Toggle fullscreen
+  const toggleFullscreen = useCallback(() => {
+    if (!videoContainerRef.current) return;
+
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      videoContainerRef.current.requestFullscreen();
+    }
+  }, []);
+
+  // Format time helper
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // Save progress periodically
   const saveProgress = useCallback(async (watchTime: number, completed: boolean = false) => {
@@ -189,6 +327,25 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     }
   };
 
+  const handlePlayPause = () => {
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play();
+    } else {
+      videoRef.current.pause();
+    }
+  };
+
+  const handleSeek = (direction: 'back' | 'forward') => {
+    if (!videoRef.current) return;
+    if (direction === 'back') {
+      videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
+    } else {
+      const newTime = Math.min(videoRef.current.currentTime + 10, maxWatchedTime + 3);
+      videoRef.current.currentTime = newTime;
+    }
+  };
+
   const handleClose = () => {
     if (videoRef.current) {
       videoRef.current.pause();
@@ -196,6 +353,10 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       if (currentTime > 0 && !isCompleted) {
         saveProgress(currentTime, false);
       }
+    }
+    // Exit fullscreen if active
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
     }
     onClose();
   };
@@ -222,7 +383,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
             <p className="text-sm text-muted-foreground">{topicName}</p>
           </DialogHeader>
           
-          <div className="relative bg-black">
+          <div ref={videoContainerRef} className="relative bg-black group">
             {isLoading && !hasError && (
               <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
                 <div className="flex flex-col items-center gap-3">
@@ -255,12 +416,14 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
               src={videoUrl}
               className="w-full aspect-video"
               controls
-              controlsList="nodownload nofullscreen"
+              controlsList="nodownload"
               disablePictureInPicture
               playsInline
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
-              onCanPlay={() => setIsLoading(false)}
+              onCanPlay={handleCanPlay}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
               onEnded={handleVideoEnded}
               onError={(e) => {
                 console.error('Video load error:', e);
@@ -268,13 +431,59 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                 setHasError(true);
               }}
             />
+
+            {/* Fullscreen button overlay */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity z-20"
+              onClick={toggleFullscreen}
+            >
+              {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+            </Button>
           </div>
           
           <div className="p-4 border-t border-border">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-4">
+                {/* Custom Controls */}
+                <div className="flex items-center gap-1">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleSeek('back')}>
+                          <SkipBack className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>-10 seconds (←)</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePlayPause}>
+                          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Play/Pause (Space)</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleSeek('forward')}>
+                          <SkipForward className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>+10 seconds (→)</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+
                 <div className="text-sm text-muted-foreground">
-                  Progress: {progress}% watched
+                  {formatTime(currentTime)} / {formatTime(duration)} ({progress}%)
                 </div>
                 
                 {/* Playback Speed */}
@@ -293,9 +502,43 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Fullscreen button */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleFullscreen}>
+                        {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Fullscreen (F)</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                {/* Keyboard shortcuts hint */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground cursor-help">
+                        <Keyboard className="h-3 w-3" />
+                        <span>Shortcuts</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <div className="text-xs space-y-1">
+                        <p><kbd className="px-1 bg-muted rounded">Space</kbd> Play/Pause</p>
+                        <p><kbd className="px-1 bg-muted rounded">←/→</kbd> Seek ±5s</p>
+                        <p><kbd className="px-1 bg-muted rounded">↑/↓</kbd> Volume</p>
+                        <p><kbd className="px-1 bg-muted rounded">1-4</kbd> Speed (0.5x-2x)</p>
+                        <p><kbd className="px-1 bg-muted rounded">F</kbd> Fullscreen</p>
+                        <p><kbd className="px-1 bg-muted rounded">M</kbd> Mute</p>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
                 {isCompleted ? (
                   <span className="flex items-center gap-1 text-success text-sm font-medium">
                     <CheckCircle2 className="h-4 w-4" /> Completed

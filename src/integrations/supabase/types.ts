@@ -339,6 +339,53 @@ export type Database = {
         }
         Relationships: []
       }
+      student_video_notes: {
+        Row: {
+          course_id: string
+          created_at: string
+          id: string
+          material_id: string | null
+          module_id: string
+          note_text: string
+          timestamp_seconds: number
+          topic_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          id?: string
+          material_id?: string | null
+          module_id: string
+          note_text: string
+          timestamp_seconds?: number
+          topic_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          id?: string
+          material_id?: string | null
+          module_id?: string
+          note_text?: string
+          timestamp_seconds?: number
+          topic_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_video_notes_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "course_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_video_progress: {
         Row: {
           completed: boolean
@@ -412,6 +459,109 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      video_chapters: {
+        Row: {
+          course_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          end_time_seconds: number | null
+          id: string
+          material_id: string | null
+          module_id: string
+          start_time_seconds: number
+          title: string
+          topic_id: string
+          updated_at: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_time_seconds?: number | null
+          id?: string
+          material_id?: string | null
+          module_id: string
+          start_time_seconds?: number
+          title: string
+          topic_id: string
+          updated_at?: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_time_seconds?: number | null
+          id?: string
+          material_id?: string | null
+          module_id?: string
+          start_time_seconds?: number
+          title?: string
+          topic_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_chapters_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "course_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_transcripts: {
+        Row: {
+          course_id: string
+          created_at: string
+          full_text: string | null
+          generated_by: string | null
+          id: string
+          language_code: string | null
+          material_id: string | null
+          module_id: string
+          segments: Json
+          topic_id: string
+          updated_at: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          full_text?: string | null
+          generated_by?: string | null
+          id?: string
+          language_code?: string | null
+          material_id?: string | null
+          module_id: string
+          segments?: Json
+          topic_id: string
+          updated_at?: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          full_text?: string | null
+          generated_by?: string | null
+          id?: string
+          language_code?: string | null
+          material_id?: string | null
+          module_id?: string
+          segments?: Json
+          topic_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_transcripts_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: true
+            referencedRelation: "course_materials"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

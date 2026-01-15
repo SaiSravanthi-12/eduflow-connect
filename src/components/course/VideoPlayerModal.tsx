@@ -3,8 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle2, Loader2, AlertCircle, Maximize, Minimize, Play, Pause, SkipBack, SkipForward, Keyboard } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertCircle, Maximize, Minimize, Play, Pause, SkipBack, SkipForward, Keyboard, PictureInPicture2, Bookmark, BookmarkPlus, Trash2, X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -22,6 +25,17 @@ export interface VideoPlayerModalProps {
   onComplete: (moduleId: string) => void;
 }
 
+interface Bookmark {
+  id: string;
+  time: number;
+  label: string;
+}
+
+interface WatchedSegment {
+  start: number;
+  end: number;
+}
+
 export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   isOpen,
   onClose,
@@ -37,6 +51,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
   const [playbackSpeed, setPlaybackSpeed] = useState('1');
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -49,13 +64,17 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const [pendingCompletion, setPendingCompletion] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [showResumeToast, setShowResumeToast] = useState(false);
+  const [isPiPActive, setIsPiPActive] = useState(false);
   const [savedPosition, setSavedPosition] = useState(0);
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [newBookmarkLabel, setNewBookmarkLabel] = useState('');
+  const [showBookmarkInput, setShowBookmarkInput] = useState(false);
+  const [watchedSegments, setWatchedSegments] = useState<WatchedSegment[]>([]);
   const lastSaveTime = useRef(0);
   const hasResumed = useRef(false);
+  const segmentStart = useRef(0);
 
   const speedOptions = ['0.5', '1', '1.5', '2'];
-  const speedMap: Record<string, string> = { '1': '0.5', '2': '1', '3': '1.5', '4': '2' };
 
   // Reset state when modal opens
   useEffect(() => {
@@ -67,12 +86,13 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       setShowCompletionDialog(false);
       setPendingCompletion(false);
       setIsPlaying(false);
-      setShowResumeToast(false);
       hasResumed.current = false;
+      segmentStart.current = 0;
+      setWatchedSegments([]);
     }
   }, [isOpen, videoUrl]);
 
-  // Load saved progress on mount
+  // Load saved progress and bookmarks on mount
   useEffect(() => {
     const loadProgress = async () => {
       if (!userId || !materialId) return;
@@ -91,8 +111,19 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           // Store saved position for resume feature
           if (data.watch_time_seconds > 0 && !data.completed) {
             setSavedPosition(data.watch_time_seconds);
-            setShowResumeToast(true);
           }
+        }
+
+        // Load bookmarks from localStorage
+        const savedBookmarks = localStorage.getItem(`video-bookmarks-${materialId}`);
+        if (savedBookmarks) {
+          setBookmarks(JSON.parse(savedBookmarks));
+        }
+        
+        // Load watched segments from localStorage
+        const savedSegments = localStorage.getItem(`video-segments-${materialId}`);
+        if (savedSegments) {
+          setWatchedSegments(JSON.parse(savedSegments));
         }
       } catch (error) {
         console.error('Error loading progress:', error);
@@ -104,12 +135,27 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     }
   }, [isOpen, materialId, userId]);
 
+  // Save bookmarks to localStorage
+  useEffect(() => {
+    if (materialId && bookmarks.length > 0) {
+      localStorage.setItem(`video-bookmarks-${materialId}`, JSON.stringify(bookmarks));
+    }
+  }, [bookmarks, materialId]);
+
+  // Save watched segments to localStorage
+  useEffect(() => {
+    if (materialId && watchedSegments.length > 0) {
+      localStorage.setItem(`video-segments-${materialId}`, JSON.stringify(watchedSegments));
+    }
+  }, [watchedSegments, materialId]);
+
   // Handle resume when video is ready
   const handleCanPlay = useCallback(() => {
     setIsLoading(false);
     if (savedPosition > 0 && !hasResumed.current && videoRef.current) {
       hasResumed.current = true;
       videoRef.current.currentTime = savedPosition;
+      segmentStart.current = savedPosition;
       toast.info(`Resuming from ${formatTime(savedPosition)}`, {
         duration: 3000,
         action: {
@@ -117,12 +163,30 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           onClick: () => {
             if (videoRef.current) {
               videoRef.current.currentTime = 0;
+              segmentStart.current = 0;
             }
           }
         }
       });
     }
   }, [savedPosition]);
+
+  // PiP mode listeners
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleEnterPiP = () => setIsPiPActive(true);
+    const handleLeavePiP = () => setIsPiPActive(false);
+
+    video.addEventListener('enterpictureinpicture', handleEnterPiP);
+    video.addEventListener('leavepictureinpicture', handleLeavePiP);
+
+    return () => {
+      video.removeEventListener('enterpictureinpicture', handleEnterPiP);
+      video.removeEventListener('leavepictureinpicture', handleLeavePiP);
+    };
+  }, [isOpen]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -195,6 +259,14 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           video.muted = !video.muted;
           toast.info(video.muted ? 'Muted' : 'Unmuted');
           break;
+        case 'KeyB':
+          e.preventDefault();
+          addBookmark();
+          break;
+        case 'KeyP':
+          e.preventDefault();
+          togglePiP();
+          break;
       }
     };
 
@@ -223,11 +295,90 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     }
   }, []);
 
+  // Toggle Picture-in-Picture
+  const togglePiP = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else if (document.pictureInPictureEnabled) {
+        await video.requestPictureInPicture();
+      } else {
+        toast.error('Picture-in-Picture is not supported in this browser');
+      }
+    } catch (error) {
+      console.error('PiP error:', error);
+      toast.error('Could not enable Picture-in-Picture');
+    }
+  }, []);
+
   // Format time helper
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Add bookmark at current time
+  const addBookmark = useCallback(() => {
+    if (!videoRef.current) return;
+    
+    const time = videoRef.current.currentTime;
+    const defaultLabel = `Bookmark at ${formatTime(time)}`;
+    
+    const newBookmark: Bookmark = {
+      id: Date.now().toString(),
+      time,
+      label: newBookmarkLabel || defaultLabel
+    };
+    
+    setBookmarks(prev => [...prev, newBookmark].sort((a, b) => a.time - b.time));
+    setNewBookmarkLabel('');
+    setShowBookmarkInput(false);
+    toast.success('Bookmark added!');
+  }, [newBookmarkLabel]);
+
+  // Delete bookmark
+  const deleteBookmark = useCallback((id: string) => {
+    setBookmarks(prev => prev.filter(b => b.id !== id));
+    // Also update localStorage
+    const remaining = bookmarks.filter(b => b.id !== id);
+    if (remaining.length === 0) {
+      localStorage.removeItem(`video-bookmarks-${materialId}`);
+    }
+    toast.info('Bookmark removed');
+  }, [bookmarks, materialId]);
+
+  // Jump to bookmark
+  const jumpToBookmark = useCallback((time: number) => {
+    if (videoRef.current && time <= maxWatchedTime + 3) {
+      videoRef.current.currentTime = time;
+    } else {
+      toast.warning('You cannot jump to an unwatched portion');
+    }
+  }, [maxWatchedTime]);
+
+  // Merge overlapping segments
+  const mergeSegments = (segments: WatchedSegment[]): WatchedSegment[] => {
+    if (segments.length === 0) return [];
+    
+    const sorted = [...segments].sort((a, b) => a.start - b.start);
+    const merged: WatchedSegment[] = [sorted[0]];
+    
+    for (let i = 1; i < sorted.length; i++) {
+      const last = merged[merged.length - 1];
+      const current = sorted[i];
+      
+      if (current.start <= last.end + 1) {
+        last.end = Math.max(last.end, current.end);
+      } else {
+        merged.push(current);
+      }
+    }
+    
+    return merged;
   };
 
   // Save progress periodically
@@ -311,6 +462,28 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     }
   };
 
+  // Track watched segments when pausing or seeking
+  const handlePause = () => {
+    setIsPlaying(false);
+    const current = videoRef.current?.currentTime || 0;
+    if (current > segmentStart.current) {
+      const newSegment: WatchedSegment = {
+        start: Math.floor(segmentStart.current),
+        end: Math.floor(current)
+      };
+      setWatchedSegments(prev => mergeSegments([...prev, newSegment]));
+    }
+  };
+
+  const handlePlay = () => {
+    setIsPlaying(true);
+    segmentStart.current = videoRef.current?.currentTime || 0;
+  };
+
+  const handleSeeked = () => {
+    segmentStart.current = videoRef.current?.currentTime || 0;
+  };
+
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
@@ -347,6 +520,17 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   };
 
   const handleClose = () => {
+    // Save final segment before closing
+    const current = videoRef.current?.currentTime || 0;
+    if (current > segmentStart.current && isPlaying) {
+      const newSegment: WatchedSegment = {
+        start: Math.floor(segmentStart.current),
+        end: Math.floor(current)
+      };
+      const updatedSegments = mergeSegments([...watchedSegments, newSegment]);
+      localStorage.setItem(`video-segments-${materialId}`, JSON.stringify(updatedSegments));
+    }
+    
     if (videoRef.current) {
       videoRef.current.pause();
       // Save progress on close
@@ -358,14 +542,41 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     if (document.fullscreenElement) {
       document.exitFullscreen();
     }
+    // Exit PiP if active
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture();
+    }
     onClose();
   };
 
   const handleVideoEnded = () => {
+    // Save final segment
+    const current = videoRef.current?.currentTime || 0;
+    if (current > segmentStart.current) {
+      const newSegment: WatchedSegment = {
+        start: Math.floor(segmentStart.current),
+        end: Math.floor(current)
+      };
+      setWatchedSegments(prev => mergeSegments([...prev, newSegment]));
+    }
+    
     if (!isCompleted && !pendingCompletion) {
       setPendingCompletion(true);
       setShowCompletionDialog(true);
     }
+  };
+
+  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    console.error('Video load error:', e);
+    setIsLoading(false);
+    setHasError(true);
+  };
+
+  // Calculate total watched percentage from segments
+  const getWatchedPercentage = (): number => {
+    if (duration <= 0) return 0;
+    const totalWatched = watchedSegments.reduce((acc, seg) => acc + (seg.end - seg.start), 0);
+    return Math.min(100, Math.round((totalWatched / duration) * 100));
   };
 
   const progress = duration > 0 ? Math.round((currentTime / duration) * 100) : 0;
@@ -379,6 +590,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
               {videoTitle}
               {isCompleted && <CheckCircle2 className="h-5 w-5 text-success" />}
               {isSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              {isPiPActive && (
+                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                  PiP Active
+                </span>
+              )}
             </DialogTitle>
             <p className="text-sm text-muted-foreground">{topicName}</p>
           </DialogHeader>
@@ -417,30 +633,106 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
               className="w-full aspect-video"
               controls
               controlsList="nodownload"
-              disablePictureInPicture
               playsInline
+              crossOrigin="anonymous"
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
               onCanPlay={handleCanPlay}
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
+              onPlay={handlePlay}
+              onPause={handlePause}
+              onSeeked={handleSeeked}
               onEnded={handleVideoEnded}
-              onError={(e) => {
-                console.error('Video load error:', e);
-                setIsLoading(false);
-                setHasError(true);
-              }}
+              onError={handleVideoError}
             />
 
-            {/* Fullscreen button overlay */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity z-20"
-              onClick={toggleFullscreen}
+            {/* Overlay controls */}
+            <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="bg-black/50 hover:bg-black/70 text-white"
+                      onClick={togglePiP}
+                    >
+                      <PictureInPicture2 className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Picture-in-Picture (P)</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <Button
+                variant="ghost"
+                size="icon"
+                className="bg-black/50 hover:bg-black/70 text-white"
+                onClick={toggleFullscreen}
+              >
+                {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+              </Button>
+            </div>
+
+            {/* Bookmark indicators on video */}
+            {duration > 0 && bookmarks.length > 0 && (
+              <div className="absolute bottom-12 left-0 right-0 h-1 pointer-events-none z-10">
+                {bookmarks.map(bookmark => (
+                  <div
+                    key={bookmark.id}
+                    className="absolute w-1 h-3 bg-yellow-400 -top-1 rounded-full"
+                    style={{ left: `${(bookmark.time / duration) * 100}%` }}
+                    title={bookmark.label}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Mini Progress Bar - Watched Segments */}
+          <div className="px-4 pt-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs text-muted-foreground">Watched segments:</span>
+              <span className="text-xs font-medium">{getWatchedPercentage()}% covered</span>
+            </div>
+            <div 
+              ref={progressBarRef}
+              className="relative h-2 bg-muted rounded-full overflow-hidden"
             >
-              {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
-            </Button>
+              {/* Watched segments */}
+              {watchedSegments.map((segment, idx) => (
+                <div
+                  key={idx}
+                  className="absolute h-full bg-success/70"
+                  style={{
+                    left: `${(segment.start / duration) * 100}%`,
+                    width: `${((segment.end - segment.start) / duration) * 100}%`
+                  }}
+                />
+              ))}
+              
+              {/* Current playhead */}
+              <div
+                className="absolute h-full w-0.5 bg-primary z-10"
+                style={{ left: `${(currentTime / duration) * 100}%` }}
+              />
+              
+              {/* Max watched indicator */}
+              <div
+                className="absolute h-full bg-primary/30"
+                style={{ width: `${(maxWatchedTime / duration) * 100}%` }}
+              />
+              
+              {/* Bookmark markers */}
+              {bookmarks.map(bookmark => (
+                <div
+                  key={bookmark.id}
+                  className="absolute w-1.5 h-1.5 bg-yellow-400 rounded-full top-1/2 -translate-y-1/2 cursor-pointer hover:scale-150 transition-transform z-20"
+                  style={{ left: `${(bookmark.time / duration) * 100}%` }}
+                  onClick={() => jumpToBookmark(bookmark.time)}
+                  title={bookmark.label}
+                />
+              ))}
+            </div>
           </div>
           
           <div className="p-4 border-t border-border">
@@ -503,6 +795,23 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   </Select>
                 </div>
 
+                {/* PiP Button */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant={isPiPActive ? "default" : "ghost"} 
+                        size="icon" 
+                        className="h-8 w-8" 
+                        onClick={togglePiP}
+                      >
+                        <PictureInPicture2 className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Picture-in-Picture (P)</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
                 {/* Fullscreen button */}
                 <TooltipProvider>
                   <Tooltip>
@@ -514,6 +823,104 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                     <TooltipContent>Fullscreen (F)</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+
+                {/* Bookmarks */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 relative">
+                      <Bookmark className="h-4 w-4" />
+                      {bookmarks.length > 0 && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                          {bookmarks.length}
+                        </span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-2" align="start">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-sm">Bookmarks</h4>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => setShowBookmarkInput(true)}
+                              >
+                                <BookmarkPlus className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Add bookmark (B)</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      
+                      {showBookmarkInput && (
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Bookmark label..."
+                            value={newBookmarkLabel}
+                            onChange={(e) => setNewBookmarkLabel(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') addBookmark();
+                              if (e.key === 'Escape') setShowBookmarkInput(false);
+                            }}
+                            className="h-8 text-sm"
+                            autoFocus
+                          />
+                          <Button size="sm" className="h-8" onClick={addBookmark}>
+                            Add
+                          </Button>
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-8 w-8" 
+                            onClick={() => setShowBookmarkInput(false)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {bookmarks.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-4">
+                          No bookmarks yet. Press B to add one.
+                        </p>
+                      ) : (
+                        <ScrollArea className="h-40">
+                          <div className="space-y-1">
+                            {bookmarks.map(bookmark => (
+                              <div
+                                key={bookmark.id}
+                                className="flex items-center gap-2 p-2 hover:bg-muted rounded-md group cursor-pointer"
+                                onClick={() => jumpToBookmark(bookmark.time)}
+                              >
+                                <Bookmark className="h-3 w-3 text-yellow-500 flex-shrink-0" />
+                                <span className="text-xs font-mono text-muted-foreground">
+                                  {formatTime(bookmark.time)}
+                                </span>
+                                <span className="text-sm flex-1 truncate">{bookmark.label}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteBookmark(bookmark.id);
+                                  }}
+                                >
+                                  <Trash2 className="h-3 w-3 text-destructive" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
               
               <div className="flex items-center gap-3">
@@ -534,6 +941,8 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                         <p><kbd className="px-1 bg-muted rounded">1-4</kbd> Speed (0.5x-2x)</p>
                         <p><kbd className="px-1 bg-muted rounded">F</kbd> Fullscreen</p>
                         <p><kbd className="px-1 bg-muted rounded">M</kbd> Mute</p>
+                        <p><kbd className="px-1 bg-muted rounded">B</kbd> Add Bookmark</p>
+                        <p><kbd className="px-1 bg-muted rounded">P</kbd> Picture-in-Picture</p>
                       </div>
                     </TooltipContent>
                   </Tooltip>

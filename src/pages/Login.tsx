@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login, user } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -34,35 +34,30 @@ export default function Login() {
         title: 'Welcome back!',
         description: 'You have successfully logged in.',
       });
-      // Navigation will be handled by the useEffect in App.tsx based on user role
+
+      // Redirect based on role
+      if (email.includes('@admin')) {
+        navigate('/admin');
+      } else if (email.includes('@institution')) {
+        navigate('/institution');
+      } else if (email.includes('@teacher')) {
+        navigate('/teacher');
+      } else if (email.includes('@student')) {
+        navigate('/student');
+      }
     } else {
-      setError('Invalid email or password. Please check your credentials and try again.');
+      setError('Invalid email format. Use @admin, @institution, @teacher, or @student domain.');
     }
 
     setIsLoading(false);
   };
 
-  // Redirect if user is already logged in
-  React.useEffect(() => {
-    if (user) {
-      switch (user.role) {
-        case 'admin':
-          navigate('/admin');
-          break;
-        case 'institution':
-          navigate('/institution');
-          break;
-        case 'teacher':
-          navigate('/teacher');
-          break;
-        case 'student':
-          navigate('/student');
-          break;
-        default:
-          navigate('/');
-      }
-    }
-  }, [user, navigate]);
+  const demoLogins = [
+    { label: 'Admin', email: 'admin@admin.com' },
+    { label: 'Institution', email: 'college@institution.com' },
+    { label: 'Teacher', email: 'teacher@teacher.com' },
+    { label: 'Student', email: 'student@student.com' },
+  ];
 
   return (
     <div className="min-h-screen flex">
@@ -175,13 +170,29 @@ export default function Login() {
             </Button>
           </form>
 
-          {/* Sign Up Link */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              Don't have an account?{' '}
-              <Link to="/signup" className="text-primary hover:underline font-medium">
-                Sign up
-              </Link>
+          {/* Demo Logins */}
+          <div className="mt-8">
+            <p className="text-center text-sm text-muted-foreground mb-4">
+              Quick Demo Access
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {demoLogins.map((demo) => (
+                <Button
+                  key={demo.email}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEmail(demo.email);
+                    setPassword('demo123');
+                  }}
+                  className="text-xs"
+                >
+                  {demo.label}
+                </Button>
+              ))}
+            </div>
+            <p className="text-center text-xs text-muted-foreground mt-3">
+              Use any password with demo emails
             </p>
           </div>
         </div>

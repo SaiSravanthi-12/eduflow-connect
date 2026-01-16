@@ -193,33 +193,6 @@ export type Database = {
         }
         Relationships: []
       }
-      profiles: {
-        Row: {
-          created_at: string
-          email: string | null
-          id: string
-          institution_id: string | null
-          name: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          email?: string | null
-          id: string
-          institution_id?: string | null
-          name?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          email?: string | null
-          id?: string
-          institution_id?: string | null
-          name?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
       quiz_attempts: {
         Row: {
           answers: Json

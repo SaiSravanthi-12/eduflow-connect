@@ -763,7 +763,13 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={handleClose}>
+      <Dialog
+  open={isOpen}
+  onOpenChange={(open) => {
+    if (!open) handleClose();
+  }}
+>
+
         <DialogContent className={`p-0 overflow-hidden bg-card ${showSidePanel ? 'max-w-6xl' : 'max-w-4xl'} w-full`}>
           <DialogHeader className="p-4 pb-2">
             <DialogTitle className="flex items-center gap-2 text-foreground">

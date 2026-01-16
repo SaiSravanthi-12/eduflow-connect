@@ -111,49 +111,58 @@ const FinalExamContent: React.FC<FinalExamContentProps> = ({
     setIsSubmitting(true);
     stopProctoring();
 
-    // Calculate MCQ score
-    let correctMCQ = 0;
-    mcqQuestions.forEach(q => {
-      if (mcqAnswers[q.id] === q.correctAnswer) {
-        correctMCQ++;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        toast.error('Please log in to submit the exam');
+        setIsSubmitting(false);
+        return;
       }
-    });
 
-    const mcqScore = mcqQuestions.length > 0 ? Math.round((correctMCQ / mcqQuestions.length) * 70) : 0; // 70% weight
-    const codingScore = codingQuestions.length > 0 ? 30 : 0; // 30% weight, simplified scoring
-    const totalScore = mcqScore + (Object.keys(codingAnswers).length === codingQuestions.length ? codingScore : 0);
-    const passed = totalScore >= 60;
+      // Submit to server-side grading
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/grade-exam`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            courseId,
+            mcqAnswers,
+            codingAnswers,
+            violations,
+            violationCount,
+            isWebcamEnabled,
+            autoSubmit,
+            startedAt: new Date(Date.now() - (timeLimit * 60 - timeRemaining) * 1000).toISOString(),
+          }),
+        }
+      );
 
-    // Save exam attempt
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from('exam_attempts').insert([{
-        user_id: user.id,
-        course_id: courseId,
-        mcq_answers: mcqAnswers,
-        coding_answers: codingAnswers,
-        score: totalScore,
-        total_marks: 100,
-        passed,
-        proctoring_violations: violations,
-        violation_count: violationCount,
-        webcam_enabled: isWebcamEnabled,
-        status: 'completed',
-        started_at: new Date(Date.now() - (timeLimit * 60 - timeRemaining) * 1000).toISOString(),
-        completed_at: new Date().toISOString(),
-        auto_submitted: autoSubmit,
-      }] as any);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to grade exam');
+      }
+
+      const result = await response.json();
+      
+      setExamResult({ passed: result.passed, score: result.score });
+      setExamState('completed');
+      onComplete(result.passed, result.score);
+
+      if (autoSubmit) {
+        toast.warning('Exam auto-submitted due to time limit or violations');
+      }
+    } catch (error) {
+      console.error('Error submitting exam:', error);
+      toast.error('Failed to submit exam. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setExamResult({ passed, score: totalScore });
-    setExamState('completed');
-    setIsSubmitting(false);
-    onComplete(passed, totalScore);
-
-    if (autoSubmit) {
-      toast.warning('Exam auto-submitted due to time limit or violations');
-    }
-  }, [mcqQuestions, mcqAnswers, codingQuestions, codingAnswers, violations, violationCount, isWebcamEnabled, timeLimit, timeRemaining, courseId, stopProctoring, onComplete]);
+  }, [mcqAnswers, codingAnswers, violations, violationCount, isWebcamEnabled, timeLimit, timeRemaining, courseId, stopProctoring, onComplete]);
 
   // Auto-submit on max violations
   useEffect(() => {

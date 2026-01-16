@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -12,7 +11,7 @@ import {
   ArrowRight, 
   RotateCcw,
   Trophy,
-  X
+  Loader2
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -21,7 +20,7 @@ interface QuizQuestion {
   id: string;
   question: string;
   options: string[];
-  correctAnswer: number;
+  // NOTE: correctAnswer is NOT included - grading happens server-side
 }
 
 export interface ModuleQuizCardProps {
@@ -34,9 +33,8 @@ export interface ModuleQuizCardProps {
   onComplete: (passed: boolean) => void;
 }
 
-// Sample questions generator based on module
+// Sample questions generator for fallback (without correct answers)
 const generateModuleQuestions = (moduleId: string, moduleName: string): QuizQuestion[] => {
-  // These are placeholder questions - in production, fetch from database or generate with AI
   return Array.from({ length: 10 }, (_, i) => ({
     id: `${moduleId}-q${i + 1}`,
     question: `Question ${i + 1} about ${moduleName}?`,
@@ -46,7 +44,6 @@ const generateModuleQuestions = (moduleId: string, moduleName: string): QuizQues
       `Option C for question ${i + 1}`,
       `Option D for question ${i + 1}`,
     ],
-    correctAnswer: Math.floor(Math.random() * 4),
   }));
 };
 
@@ -67,10 +64,14 @@ export const ModuleQuizCard: React.FC<ModuleQuizCardProps> = ({
   const [score, setScore] = useState(0);
   const [passed, setPassed] = useState(false);
   const [previousAttempt, setPreviousAttempt] = useState<{ score: number; passed: boolean } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const loadQuizData = async () => {
       if (!userId || !isOpen) return;
+
+      setIsLoading(true);
 
       // Check for previous attempts
       const { data: attempt } = await supabase
@@ -93,19 +94,37 @@ export const ModuleQuizCard: React.FC<ModuleQuizCardProps> = ({
         }
       }
 
-      // Load or generate questions
-      const { data: quiz } = await supabase
-        .from('module_quizzes')
-        .select('questions')
-        .eq('course_id', courseId)
-        .eq('module_id', moduleId)
-        .maybeSingle();
+      // Try to fetch questions from edge function (without correct answers)
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          const response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-quiz-questions?courseId=${courseId}&moduleId=${moduleId}`,
+            {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
 
-      if (quiz?.questions && Array.isArray(quiz.questions) && quiz.questions.length > 0) {
-        setQuestions(quiz.questions as unknown as QuizQuestion[]);
-      } else {
-        setQuestions(generateModuleQuestions(moduleId, moduleName));
+          if (response.ok) {
+            const data = await response.json();
+            if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+              setQuestions(data.questions);
+              setIsLoading(false);
+              return;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching quiz questions:', error);
       }
+
+      // Fallback to generated questions (for demo)
+      setQuestions(generateModuleQuestions(moduleId, moduleName));
+      setIsLoading(false);
     };
 
     loadQuizData();
@@ -138,62 +157,71 @@ export const ModuleQuizCard: React.FC<ModuleQuizCardProps> = ({
   };
 
   const handleSubmit = async () => {
-    // Calculate score
-    let correct = 0;
-    questions.forEach(q => {
-      if (answers[q.id] === q.correctAnswer) {
-        correct++;
+    setIsSubmitting(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        toast.error('Please log in to submit the quiz');
+        setIsSubmitting(false);
+        return;
       }
-    });
 
-    const scorePercent = Math.round((correct / questions.length) * 100);
-    const hasPassed = scorePercent >= 70;
+      // Submit to server-side grading
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/grade-quiz`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            courseId,
+            moduleId,
+            answers,
+          }),
+        }
+      );
 
-    setScore(scorePercent);
-    setPassed(hasPassed);
-    setShowResults(true);
-    setQuizState('completed');
-
-    // Save attempt
-    if (userId) {
-      await supabase.from('quiz_attempts').insert([{
-        user_id: userId,
-        course_id: courseId,
-        module_id: moduleId,
-        answers: answers,
-        score: scorePercent,
-        total_questions: questions.length,
-        passed: hasPassed,
-        completed_at: new Date().toISOString(),
-      }] as any);
-
-      // Update module progress
-      if (hasPassed) {
-        await supabase
-          .from('student_module_progress')
-          .upsert([{
-            user_id: userId,
-            course_id: courseId,
-            module_id: moduleId,
-            quiz_passed: true,
-            quiz_score: scorePercent,
-            quiz_completed_at: new Date().toISOString(),
-          }] as any, {
-            onConflict: 'user_id,course_id,module_id'
-          });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to grade quiz');
       }
-    }
 
-    onComplete(hasPassed);
+      const result = await response.json();
+      
+      setScore(result.score);
+      setPassed(result.passed);
+      setShowResults(true);
+      setQuizState('completed');
 
-    if (hasPassed) {
-      toast.success('Congratulations! You passed the quiz!');
-    } else {
-      toast.error('You did not pass. Try again!');
+      onComplete(result.passed);
+
+      if (result.passed) {
+        toast.success('Congratulations! You passed the quiz!');
+      } else {
+        toast.error('You did not pass. Try again!');
+      }
+    } catch (error) {
+      console.error('Error submitting quiz:', error);
+      toast.error('Failed to submit quiz. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2">Loading quiz...</span>
+        </div>
+      );
+    }
+
     if (quizState === 'not_started') {
       return (
         <div className="space-y-4">
@@ -205,7 +233,7 @@ export const ModuleQuizCard: React.FC<ModuleQuizCardProps> = ({
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="p-3 rounded-lg bg-muted">
               <p className="text-muted-foreground">Questions</p>
-              <p className="font-semibold text-foreground">10 MCQs</p>
+              <p className="font-semibold text-foreground">{questions.length} MCQs</p>
             </div>
             <div className="p-3 rounded-lg bg-muted">
               <p className="text-muted-foreground">Passing Score</p>
@@ -315,11 +343,20 @@ export const ModuleQuizCard: React.FC<ModuleQuizCardProps> = ({
               {currentQuestion === questions.length - 1 ? (
                 <Button
                   onClick={handleSubmit}
-                  disabled={Object.keys(answers).length < questions.length}
+                  disabled={Object.keys(answers).length < questions.length || isSubmitting}
                   className="gap-2"
                 >
-                  Submit Quiz
-                  <CheckCircle2 className="h-4 w-4" />
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      Submit Quiz
+                      <CheckCircle2 className="h-4 w-4" />
+                    </>
+                  )}
                 </Button>
               ) : (
                 <Button onClick={handleNext} disabled={!isAnswered} className="gap-2">

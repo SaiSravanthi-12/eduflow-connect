@@ -1367,32 +1367,6 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
         </AlertDialogContent>
       </AlertDialog>
     </>
-    <video
-  ref={videoRef}
-  src={videoUrl}
-  className="w-full aspect-video cursor-pointer"
-  controls
-  controlsList="nodownload"
-  disablePictureInPicture
-  playsInline
-  onClick={() => {
-    if (!videoRef.current) return;
-    videoRef.current.paused
-      ? videoRef.current.play()
-      : videoRef.current.pause();
-  }}
-  onTimeUpdate={handleTimeUpdate}
-  onLoadedMetadata={handleLoadedMetadata}
-  onCanPlay={handleCanPlay}
-  onPlay={() => setIsPlaying(true)}
-  onPause={() => setIsPlaying(false)}
-  onEnded={handleVideoEnded}
-  onError={(e) => {
-    console.error('Video load error:', e);
-    setIsLoading(false);
-    setHasError(true);
-  }}
-/>
-
+    
   );
 };

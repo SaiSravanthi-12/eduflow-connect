@@ -117,6 +117,8 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const lastSaveTime = useRef(0);
   const hasResumed = useRef(false);
   const segmentStart = useRef(0);
+  const maxWatchedTimeRef = useRef(0);
+  const lastSkipToastAtRef = useRef(0);
 
   const speedOptions = ['0.5', '1', '1.5', '2'];
 
@@ -127,6 +129,10 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       setHasError(false);
       setCurrentTime(0);
       setDuration(0);
+      setMaxWatchedTime(0);
+      maxWatchedTimeRef.current = 0;
+      setIsCompleted(false);
+      setSavedPosition(0);
       setShowCompletionDialog(false);
       setPendingCompletion(false);
       setIsPlaying(false);
@@ -154,10 +160,12 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           .maybeSingle();
 
         if (progressData) {
-          setMaxWatchedTime(progressData.watch_time_seconds);
-          setIsCompleted(progressData.completed);
-          if (progressData.watch_time_seconds > 0 && !progressData.completed) {
-            setSavedPosition(progressData.watch_time_seconds);
+          const watched = Number(progressData.watch_time_seconds || 0);
+          maxWatchedTimeRef.current = watched;
+          setMaxWatchedTime(watched);
+          setIsCompleted(!!progressData.completed);
+          if (watched > 0 && !progressData.completed) {
+            setSavedPosition(watched);
           }
         }
 
@@ -298,7 +306,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           break;
         case 'ArrowRight':
           e.preventDefault();
-          video.currentTime = Math.min(video.currentTime + 5, maxWatchedTime + 3);
+          video.currentTime = Math.min(video.currentTime + 5, maxWatchedTimeRef.current + 3);
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -444,12 +452,16 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   }, [bookmarks, materialId]);
 
   const jumpToBookmark = useCallback((time: number) => {
-    if (videoRef.current && time <= maxWatchedTime + 3) {
-      videoRef.current.currentTime = time;
-    } else {
-      toast.warning('You cannot jump to an unwatched portion');
+    const video = videoRef.current;
+    const allowed = maxWatchedTimeRef.current + 3;
+
+    if (video && time <= allowed) {
+      video.currentTime = time;
+      return;
     }
-  }, [maxWatchedTime]);
+
+    toast.warning('You cannot jump to an unwatched portion');
+  }, []);
 
   // Note functions
   const addNote = useCallback(async () => {
@@ -627,29 +639,36 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     setPendingCompletion(false);
   }, []);
 
-  const handleTimeUpdate = () => {
-    if (!videoRef.current) return;
-    
-    const current = videoRef.current.currentTime;
-    const videoDuration = videoRef.current.duration;
-    
-    if (current > maxWatchedTime + 3) {
-      videoRef.current.currentTime = maxWatchedTime;
+  const warnSkip = () => {
+    const now = Date.now();
+    if (now - lastSkipToastAtRef.current > 1500) {
+      lastSkipToastAtRef.current = now;
       toast.warning('You cannot skip ahead in the video');
-      return;
     }
+  };
+
+  const handleTimeUpdate = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const current = video.currentTime;
+    const videoDuration = video.duration;
 
     setCurrentTime(current);
-    
-    if (current > maxWatchedTime) {
+
+    if (current > maxWatchedTimeRef.current) {
+      maxWatchedTimeRef.current = current;
       setMaxWatchedTime(current);
     }
 
     if (videoDuration > 0 && current >= videoDuration * 0.9 && !isCompleted && !pendingCompletion) {
       setPendingCompletion(true);
-      videoRef.current?.pause();
+      video.pause();
       setShowCompletionDialog(true);
-    } else if (!pendingCompletion) {
+      return;
+    }
+
+    if (!pendingCompletion) {
       saveProgress(current, false);
     }
   };
@@ -672,7 +691,18 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   };
 
   const handleSeeked = () => {
-    segmentStart.current = videoRef.current?.currentTime || 0;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const attempted = video.currentTime;
+    const allowed = maxWatchedTimeRef.current + 3;
+
+    if (attempted > allowed) {
+      video.currentTime = maxWatchedTimeRef.current;
+      warnSkip();
+    }
+
+    segmentStart.current = video.currentTime;
   };
 
   const handleLoadedMetadata = () => {
@@ -696,12 +726,15 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   };
 
   const handleSeek = (direction: 'back' | 'forward') => {
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (!video) return;
+
     if (direction === 'back') {
-      videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
-    } else {
-      videoRef.current.currentTime = Math.min(videoRef.current.currentTime + 10, maxWatchedTime + 3);
+      video.currentTime = Math.max(0, video.currentTime - 10);
+      return;
     }
+
+    video.currentTime = Math.min(video.currentTime + 10, maxWatchedTimeRef.current + 3);
   };
 
   const handleClose = () => {

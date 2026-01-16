@@ -4,15 +4,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GraduationCap, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { GraduationCap, Mail, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { UserRole } from '@/types';
 
-export default function Login() {
+export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
+  const [role, setRole] = useState<UserRole>('student');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login, user } = useAuth();
+  const { signup } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -21,48 +26,50 @@ export default function Login() {
     setError('');
     setIsLoading(true);
 
-    if (!email || !password) {
-      setError('Please enter both email and password');
+    if (!email || !password || !name) {
+      setError('Please fill in all required fields');
       setIsLoading(false);
       return;
     }
 
-    const success = await login(email, password);
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      setIsLoading(false);
+      return;
+    }
+
+    const success = await signup(email, password, name, role);
 
     if (success) {
       toast({
-        title: 'Welcome back!',
-        description: 'You have successfully logged in.',
+        title: 'Account created!',
+        description: 'You have successfully signed up.',
       });
-      // Navigation will be handled by the useEffect in App.tsx based on user role
-    } else {
-      setError('Invalid email or password. Please check your credentials and try again.');
-    }
-
-    setIsLoading(false);
-  };
-
-  // Redirect if user is already logged in
-  React.useEffect(() => {
-    if (user) {
-      switch (user.role) {
+      // Redirect based on role
+      switch (role) {
         case 'admin':
           navigate('/admin');
-          break;
-        case 'institution':
-          navigate('/institution');
           break;
         case 'teacher':
           navigate('/teacher');
           break;
         case 'student':
+        default:
           navigate('/student');
           break;
-        default:
-          navigate('/');
       }
+    } else {
+      setError('Failed to create account. Please try again.');
     }
-  }, [user, navigate]);
+
+    setIsLoading(false);
+  };
 
   return (
     <div className="min-h-screen flex">
@@ -77,31 +84,12 @@ export default function Login() {
             EduManager
           </h1>
           <p className="text-xl text-primary-foreground/80 max-w-md">
-            A comprehensive educational management system for institutions, teachers, and students.
+            Join our comprehensive educational management system today.
           </p>
-          
-          <div className="mt-12 grid grid-cols-2 gap-6 text-primary-foreground/90">
-            <div className="text-center">
-              <p className="text-3xl font-bold">500+</p>
-              <p className="text-sm opacity-80">Institutions</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold">50K+</p>
-              <p className="text-sm opacity-80">Students</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold">1000+</p>
-              <p className="text-sm opacity-80">Courses</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold">99%</p>
-              <p className="text-sm opacity-80">Satisfaction</p>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* Right Panel - Login Form */}
+      {/* Right Panel - Signup Form */}
       <div className="flex-1 flex items-center justify-center p-6 md:p-12 bg-background">
         <div className="w-full max-w-md animate-fade-in">
           {/* Mobile Logo */}
@@ -113,9 +101,9 @@ export default function Login() {
           </div>
 
           <div className="text-center mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold">Welcome Back</h2>
+            <h2 className="text-2xl md:text-3xl font-bold">Create Account</h2>
             <p className="text-muted-foreground mt-2">
-              Sign in to continue to your dashboard
+              Sign up to get started
             </p>
           </div>
 
@@ -126,6 +114,21 @@ export default function Login() {
                 <span>{error}</span>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Enter your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -143,15 +146,43 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Select value={role} onValueChange={(value) => setRole(value as UserRole)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="student">Student</SelectItem>
+                  <SelectItem value="teacher">Teacher</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Enter your password"
+                  placeholder="Create a password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="Confirm your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   className="pl-10"
                 />
               </div>
@@ -167,20 +198,20 @@ export default function Login() {
               {isLoading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Signing in...
+                  Creating account...
                 </>
               ) : (
-                'Sign In'
+                'Sign Up'
               )}
             </Button>
           </form>
 
-          {/* Sign Up Link */}
+          {/* Sign In Link */}
           <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
-              Don't have an account?{' '}
-              <Link to="/signup" className="text-primary hover:underline font-medium">
-                Sign up
+              Already have an account?{' '}
+              <Link to="/login" className="text-primary hover:underline font-medium">
+                Sign in
               </Link>
             </p>
           </div>

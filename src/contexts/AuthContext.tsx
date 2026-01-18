@@ -16,6 +16,7 @@ const mockUsers: User[] = [
   { id: '2', email: 'college@institution.com', name: 'ABC College', role: 'institution', institutionId: 'inst-1', createdAt: new Date() },
   { id: '3', email: 'teacher@teacher.com', name: 'John Smith', role: 'teacher', institutionId: 'inst-1', createdAt: new Date() },
   { id: '4', email: 'student@student.com', name: 'Jane Doe', role: 'student', institutionId: 'inst-1', createdAt: new Date() },
+  { id: '5', email: 'sravanthi@student.com', name: 'Sravanthi', role: 'student', institutionId: 'inst-1', createdAt: new Date() },
 ];
 
 function getRoleFromEmail(email: string): UserRole | null {

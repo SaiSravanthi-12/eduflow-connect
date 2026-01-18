@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Progress } from '@/components/ui/progress';
 import { Dialog } from '@/components/ui/dialog';
-import { BookOpen, Video, FileText, Play, ArrowLeft, Lock, CheckCircle, Loader2, ClipboardCheck, Trophy, Eye } from 'lucide-react';
+import { BookOpen, Video, FileText, Play, ArrowLeft, Lock, CheckCircle, Loader2, ClipboardCheck, Trophy, Eye, HelpCircle } from 'lucide-react';
 import { coursesSyllabusData, CourseSyllabus, SyllabusModule } from '@/data/coursesSyllabusData';
 import { supabase } from '@/integrations/supabase/client';
 import { VideoPlayerModal } from '@/components/course/VideoPlayerModal';
@@ -31,6 +31,11 @@ interface CourseMaterial {
   uploaded_at: string;
 }
 
+// Track demo quiz completion per topic
+interface DemoQuizCompletion {
+  [topicId: string]: boolean;
+}
+
 export default function StudentCoursesPage() {
   const navigate = useNavigate();
   const [selectedCourse, setSelectedCourse] = useState<CourseSyllabus | null>(null);
@@ -46,6 +51,10 @@ export default function StudentCoursesPage() {
   
   // Quiz state
   const [activeQuiz, setActiveQuiz] = useState<{ moduleId: string; moduleName: string } | null>(null);
+  
+  // Demo quiz state
+  const [activeDemoQuiz, setActiveDemoQuiz] = useState<{ topicId: string; topicName: string; moduleId: string } | null>(null);
+  const [demoQuizCompletions, setDemoQuizCompletions] = useState<DemoQuizCompletion>({});
 
   const enrolledCourses = coursesSyllabusData;
 
@@ -64,6 +73,14 @@ export default function StudentCoursesPage() {
     };
     fetchUser();
   }, []);
+
+  // Load demo quiz completions from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem(`demo_quiz_completions_${userId}_${selectedCourse?.id}`);
+    if (stored) {
+      setDemoQuizCompletions(JSON.parse(stored));
+    }
+  }, [userId, selectedCourse?.id]);
 
   // Initialize course progress when course is selected
   useEffect(() => {
@@ -127,6 +144,18 @@ export default function StudentCoursesPage() {
     return course.modules.reduce((acc, m) => acc + m.topics.length, 0);
   };
 
+  // Calculate course completion percentage based on sub-topics (videos)
+  const getCourseCompletionPercent = (course: CourseSyllabus): number => {
+    const totalTopics = getTopicsCount(course);
+    if (totalTopics === 0) return 0;
+    
+    const completedTopics = course.modules.reduce((acc, module) => {
+      return acc + module.topics.filter(topic => isVideoCompleted(topic.id)).length;
+    }, 0);
+    
+    return Math.round((completedTopics / totalTopics) * 100);
+  };
+
   // Helper to find progress by topic_id
   const findVideoProgressByTopic = (topicId: string): VideoProgressRecord | undefined => {
     return videoProgress.find(v => v.topic_id === topicId);
@@ -143,7 +172,17 @@ export default function StudentCoursesPage() {
     return progress?.completed || false;
   };
 
-  // Check if a topic is unlocked (previous topic's video must be completed)
+  // Check if demo quiz is completed
+  const isDemoQuizCompleted = (topicId: string): boolean => {
+    return demoQuizCompletions[topicId] || false;
+  };
+
+  // Check if a topic is fully completed (video + demo quiz)
+  const isTopicFullyCompleted = (topicId: string): boolean => {
+    return isVideoCompleted(topicId) && isDemoQuizCompleted(topicId);
+  };
+
+  // Check if a topic is unlocked (previous topic's video and demo quiz must be completed)
   const isTopicUnlocked = (moduleId: string, topicIndex: number, module: SyllabusModule): boolean => {
     // First topic in first module is always unlocked
     if (topicIndex === 0) {
@@ -159,15 +198,21 @@ export default function StudentCoursesPage() {
       return false;
     }
     
-    // Check if previous topic's video is completed
+    // Check if previous topic's video AND demo quiz are completed
     const prevTopic = module.topics[topicIndex - 1];
-    return isVideoCompleted(prevTopic.id);
+    return isTopicFullyCompleted(prevTopic.id);
   };
 
-  // Check if module quiz is unlocked (all videos in module completed)
+  // Check if module quiz is unlocked (all videos in module completed AND all demo quizzes completed)
   const isModuleQuizUnlocked = (moduleId: string): boolean => {
     const mp = findModuleProgress(moduleId);
-    return mp?.quiz_unlocked || false;
+    if (!mp?.quiz_unlocked) return false;
+    
+    // Also check all demo quizzes are completed
+    const module = selectedCourse?.modules.find(m => m.id === moduleId);
+    if (!module) return false;
+    
+    return module.topics.every(topic => isDemoQuizCompleted(topic.id));
   };
 
   // Check if module quiz is passed
@@ -187,7 +232,13 @@ export default function StudentCoursesPage() {
     if (!mp) return 0;
     const videosTotal = module.topics.length;
     const videosCompleted = mp.videos_completed || 0;
-    return videosTotal > 0 ? Math.round((videosCompleted / videosTotal) * 100) : 0;
+    const demoQuizzesCompleted = module.topics.filter(t => isDemoQuizCompleted(t.id)).length;
+    
+    // Total items = videos + demo quizzes
+    const totalItems = videosTotal * 2;
+    const completedItems = videosCompleted + demoQuizzesCompleted;
+    
+    return totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
   };
 
   // Handle video completion
@@ -197,8 +248,20 @@ export default function StudentCoursesPage() {
     }
     await refetchVideoProgress();
     await refetchModuleProgress();
-    toast.success('Video completed! You can now proceed to the next content.');
+    toast.success('Video completed! Complete the demo quiz to proceed.');
   }, [userId, selectedCourse, updateVideoCompletion, refetchVideoProgress, refetchModuleProgress]);
+
+  // Handle demo quiz completion
+  const handleDemoQuizComplete = (topicId: string, passed: boolean) => {
+    const newCompletions = { ...demoQuizCompletions, [topicId]: true };
+    setDemoQuizCompletions(newCompletions);
+    localStorage.setItem(
+      `demo_quiz_completions_${userId}_${selectedCourse?.id}`,
+      JSON.stringify(newCompletions)
+    );
+    setActiveDemoQuiz(null);
+    toast.success('Demo quiz completed! You can now proceed to the next topic.');
+  };
 
   // Handle quiz completion
   const handleQuizComplete = async (passed: boolean) => {
@@ -239,6 +302,7 @@ export default function StudentCoursesPage() {
     const stats = getMaterialsCount(selectedCourse.id);
     const overallProgress = courseProgress ? 
       Math.round((courseProgress.modules_completed / courseProgress.total_modules) * 100) : 0;
+    const subTopicProgress = getCourseCompletionPercent(selectedCourse);
     
     return (
       <DashboardLayout>
@@ -295,6 +359,20 @@ export default function StudentCoursesPage() {
           />
         )}
 
+        {/* Demo Quiz Modal */}
+        {activeDemoQuiz && userId && (
+          <ModuleQuizCard
+            isOpen={!!activeDemoQuiz}
+            onClose={() => setActiveDemoQuiz(null)}
+            courseId={selectedCourse.id}
+            moduleId={activeDemoQuiz.moduleId}
+            moduleName={activeDemoQuiz.topicName}
+            userId={userId}
+            onComplete={(passed) => handleDemoQuizComplete(activeDemoQuiz.topicId, passed)}
+            isDemo={true}
+          />
+        )}
+
         {/* Course Progress Overview */}
         <CourseProgressCard
           courseName={selectedCourse.name}
@@ -332,9 +410,12 @@ export default function StudentCoursesPage() {
                   <span className="text-sm text-muted-foreground">Documents</span>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Progress value={overallProgress} className="w-32 h-2" />
-                <span className="text-sm font-medium">{overallProgress}%</span>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-3">
+                  <Progress value={subTopicProgress} className="w-32 h-2" />
+                  <span className="text-sm font-medium">{subTopicProgress}%</span>
+                </div>
+                <span className="text-xs text-muted-foreground">Course Completion</span>
               </div>
             </div>
           </CardContent>
@@ -424,24 +505,28 @@ export default function StudentCoursesPage() {
                       <div className="flex items-center gap-1 mb-4 pt-2">
                         <span className="text-xs text-muted-foreground mr-2">Topics:</span>
                         {module.topics.map((topic, idx) => {
-                          const completed = isVideoCompleted(topic.id);
+                          const videoCompleted = isVideoCompleted(topic.id);
+                          const demoCompleted = isDemoQuizCompleted(topic.id);
+                          const fullyCompleted = videoCompleted && demoCompleted;
                           const unlocked = isTopicUnlocked(module.id, idx, module);
                           return (
                             <div
                               key={topic.id}
                               className={`h-2 flex-1 rounded-full transition-colors ${
-                                completed 
+                                fullyCompleted 
                                   ? 'bg-success' 
+                                  : videoCompleted
+                                    ? 'bg-warning'
                                   : unlocked 
                                     ? 'bg-primary/30' 
                                     : 'bg-muted'
                               }`}
-                              title={`${topic.name}${completed ? ' (Completed)' : unlocked ? ' (In Progress)' : ' (Locked)'}`}
+                              title={`${topic.name}${fullyCompleted ? ' (Completed)' : videoCompleted ? ' (Video Done, Quiz Pending)' : unlocked ? ' (In Progress)' : ' (Locked)'}`}
                             />
                           );
                         })}
                         <span className="text-xs text-muted-foreground ml-2">
-                          {module.topics.filter(t => isVideoCompleted(t.id)).length}/{module.topics.length}
+                          {module.topics.filter(t => isTopicFullyCompleted(t.id)).length}/{module.topics.length}
                         </span>
                       </div>
                       
@@ -452,13 +537,17 @@ export default function StudentCoursesPage() {
                           const hasMaterials = !!videoMaterial || !!documentMaterial;
                           const isUnlocked = isTopicUnlocked(module.id, topicIndex, module);
                           const videoCompleted = isVideoCompleted(topic.id);
+                          const demoCompleted = isDemoQuizCompleted(topic.id);
+                          const fullyCompleted = videoCompleted && demoCompleted;
 
                           return (
                             <div
                               key={topic.id}
                               className={`p-3 rounded-lg border ${
-                                videoCompleted 
+                                fullyCompleted 
                                   ? 'bg-success/5 border-success/20' 
+                                  : videoCompleted
+                                    ? 'bg-warning/5 border-warning/20'
                                   : isUnlocked 
                                     ? 'bg-muted/30 border-border/50' 
                                     : 'bg-muted/10 border-border/20 opacity-60'
@@ -466,8 +555,10 @@ export default function StudentCoursesPage() {
                             >
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                  {videoCompleted ? (
+                                  {fullyCompleted ? (
                                     <CheckCircle className="w-4 h-4 text-success" />
+                                  ) : videoCompleted ? (
+                                    <HelpCircle className="w-4 h-4 text-warning" />
                                   ) : isUnlocked ? (
                                     <Play className="w-4 h-4 text-primary" />
                                   ) : (
@@ -475,11 +566,18 @@ export default function StudentCoursesPage() {
                                   )}
                                   <span className="font-medium text-sm">{topic.name}</span>
                                 </div>
-                                {videoCompleted && (
-                                  <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs">
-                                    Completed
-                                  </Badge>
-                                )}
+                                <div className="flex gap-2">
+                                  {videoCompleted && !demoCompleted && (
+                                    <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-xs">
+                                      Quiz Pending
+                                    </Badge>
+                                  )}
+                                  {fullyCompleted && (
+                                    <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs">
+                                      Completed
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                               
                               {hasMaterials && isUnlocked ? (
@@ -508,10 +606,26 @@ export default function StudentCoursesPage() {
                                       View Document
                                     </Button>
                                   )}
+                                  {/* Demo Quiz Button */}
+                                  {videoCompleted && (
+                                    <Button
+                                      variant={demoCompleted ? "outline" : "secondary"}
+                                      size="sm"
+                                      className="gap-2 text-xs"
+                                      onClick={() => setActiveDemoQuiz({ 
+                                        topicId: topic.id, 
+                                        topicName: topic.name,
+                                        moduleId: module.id 
+                                      })}
+                                    >
+                                      <HelpCircle className="w-3 h-3" />
+                                      {demoCompleted ? 'Retake' : 'Take'} Demo Quiz
+                                    </Button>
+                                  )}
                                 </div>
                               ) : !isUnlocked ? (
                                 <p className="text-xs text-muted-foreground">
-                                  Complete previous content to unlock
+                                  Complete previous content and demo quiz to unlock
                                 </p>
                               ) : (
                                 <p className="text-xs text-muted-foreground">
@@ -557,7 +671,7 @@ export default function StudentCoursesPage() {
                             ) : (
                               <div className="flex items-center gap-2 text-muted-foreground">
                                 <Lock className="w-4 h-4" />
-                                <span className="text-xs">Complete all videos</span>
+                                <span className="text-xs">Complete all videos & demo quizzes</span>
                               </div>
                             )}
                           </div>
@@ -584,6 +698,10 @@ export default function StudentCoursesPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {enrolledCourses.map((course) => {
           const stats = getMaterialsCount(course.id);
+          const completionPercent = getCourseCompletionPercent(course);
+          const completedTopics = course.modules.reduce((acc, m) => 
+            acc + m.topics.filter(t => isVideoCompleted(t.id)).length, 0);
+          const totalTopics = getTopicsCount(course);
           
           return (
             <Card
@@ -592,14 +710,36 @@ export default function StudentCoursesPage() {
               onClick={() => setSelectedCourse(course)}
             >
               <CardHeader>
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                  <BookOpen className="w-6 h-6 text-primary" />
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <BookOpen className="w-6 h-6 text-primary" />
+                  </div>
+                  {completionPercent === 100 ? (
+                    <Badge className="bg-success/10 text-success border-success/20">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Completed
+                    </Badge>
+                  ) : completionPercent > 0 ? (
+                    <Badge variant="outline" className="text-primary border-primary/40">
+                      {completionPercent}% Complete
+                    </Badge>
+                  ) : null}
                 </div>
                 <CardTitle className="text-lg">{course.name}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-3">{course.description}</p>
                 <p className="text-sm mb-4">Instructor: {course.instructor}</p>
+                
+                {/* Progress Bar */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted-foreground">Progress</span>
+                    <span className="text-xs font-medium">{completedTopics}/{totalTopics} topics</span>
+                  </div>
+                  <Progress value={completionPercent} className="h-2" />
+                </div>
+                
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <BookOpen className="w-4 h-4" />

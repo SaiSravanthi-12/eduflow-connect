@@ -101,7 +101,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </button>
         <div className="flex items-center gap-2">
           <GraduationCap className="w-6 h-6 text-primary" />
-          <span className="font-semibold">EduManager</span>
+          <span className="font-semibold">Tec-You UpSkill</span>
         </div>
         <div className="w-10" />
       </header>
@@ -128,7 +128,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
                 <GraduationCap className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-bold text-lg">EduManager</span>
+              <span className="font-bold text-lg">Tec-You UpSkill</span>
             </Link>
             <button
               onClick={() => setSidebarOpen(false)}

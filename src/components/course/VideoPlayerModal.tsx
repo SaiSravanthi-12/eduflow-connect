@@ -24,9 +24,10 @@ export interface VideoPlayerModalProps {
   courseId: string;
   moduleId: string;
   topicId: string;
-  userId: string;
-  onComplete: (moduleId: string) => void;
+  userId?: string;
+  onComplete?: (moduleId: string) => void;
 }
+
 
 interface Bookmark {
   id: string;
@@ -142,50 +143,22 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   // Load saved progress, bookmarks, notes, chapters, and transcript
   useEffect(() => {
     const loadAllData = async () => {
-      if (!userId || !materialId) return;
+      if (!materialId) return;
 
       try {
-        // Load video progress
-        const { data: progressData } = await supabase
-          .from('student_video_progress')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('material_id', materialId)
-          .maybeSingle();
-
-        if (progressData) {
-          setMaxWatchedTime(progressData.watch_time_seconds);
-          setIsCompleted(progressData.completed);
-          if (progressData.watch_time_seconds > 0 && !progressData.completed) {
-            setSavedPosition(progressData.watch_time_seconds);
-          }
-        }
-
-        // Load bookmarks from localStorage
+        // Local-only: bookmarks
         const savedBookmarks = localStorage.getItem(`video-bookmarks-${materialId}`);
         if (savedBookmarks) {
           setBookmarks(JSON.parse(savedBookmarks));
         }
-        
-        // Load watched segments from localStorage
+
+        // Local-only: watched segments
         const savedSegments = localStorage.getItem(`video-segments-${materialId}`);
         if (savedSegments) {
           setWatchedSegments(JSON.parse(savedSegments));
         }
 
-        // Load notes from database
-        const { data: notesData } = await supabase
-          .from('student_video_notes')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('material_id', materialId)
-          .order('timestamp_seconds', { ascending: true });
-
-        if (notesData) {
-          setNotes(notesData);
-        }
-
-        // Load chapters from database
+        // Chapters (shared content)
         const { data: chaptersData } = await supabase
           .from('video_chapters')
           .select('*')
@@ -196,7 +169,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           setChapters(chaptersData);
         }
 
-        // Load transcript from database
+        // Transcript (shared content)
         const { data: transcriptData } = await supabase
           .from('video_transcripts')
           .select('*')
@@ -204,18 +177,47 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           .maybeSingle();
 
         if (transcriptData) {
-          const segments = Array.isArray(transcriptData.segments) 
-            ? (transcriptData.segments as unknown as TranscriptSegment[]) 
+          const segments = Array.isArray(transcriptData.segments)
+            ? (transcriptData.segments as unknown as TranscriptSegment[])
             : [];
           setTranscript({
             id: transcriptData.id,
             full_text: transcriptData.full_text,
             segments,
-            language_code: transcriptData.language_code || 'en'
+            language_code: transcriptData.language_code || 'en',
           });
         }
+
+        // User-specific data (requires authenticated user)
+        if (userId) {
+          const { data: progressData } = await supabase
+            .from('student_video_progress')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('material_id', materialId)
+            .maybeSingle();
+
+          if (progressData) {
+            setMaxWatchedTime(progressData.watch_time_seconds);
+            setIsCompleted(progressData.completed);
+            if (progressData.watch_time_seconds > 0 && !progressData.completed) {
+              setSavedPosition(progressData.watch_time_seconds);
+            }
+          }
+
+          const { data: notesData } = await supabase
+            .from('student_video_notes')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('material_id', materialId)
+            .order('timestamp_seconds', { ascending: true });
+
+          if (notesData) {
+            setNotes(notesData);
+          }
+        }
       } catch (error) {
-        console.error('Error loading data:', error);
+        console.error('Error loading video data:', error);
       }
     };
 
@@ -223,6 +225,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       loadAllData();
     }
   }, [isOpen, materialId, userId]);
+
 
   // Save bookmarks to localStorage
   useEffect(() => {
@@ -453,10 +456,14 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
   // Note functions
   const addNote = useCallback(async () => {
+    if (!userId) {
+      toast.info('Log in to save notes');
+      return;
+    }
     if (!newNoteText.trim() || !videoRef.current) return;
 
     const timestamp = Math.floor(videoRef.current.currentTime);
-    
+
     try {
       const { data, error } = await supabase
         .from('student_video_notes')
@@ -467,14 +474,14 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           module_id: moduleId,
           topic_id: topicId,
           timestamp_seconds: timestamp,
-          note_text: newNoteText.trim()
+          note_text: newNoteText.trim(),
         })
         .select()
         .single();
 
       if (error) throw error;
 
-      setNotes(prev => [...prev, data].sort((a, b) => a.timestamp_seconds - b.timestamp_seconds));
+      setNotes((prev) => [...prev, data].sort((a, b) => a.timestamp_seconds - b.timestamp_seconds));
       setNewNoteText('');
       toast.success('Note saved!');
     } catch (error) {
@@ -483,45 +490,56 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     }
   }, [newNoteText, userId, materialId, courseId, moduleId, topicId]);
 
-  const updateNote = useCallback(async (noteId: string) => {
-    if (!editingNoteText.trim()) return;
+  const updateNote = useCallback(
+    async (noteId: string) => {
+      if (!userId) {
+        toast.info('Log in to edit notes');
+        return;
+      }
+      if (!editingNoteText.trim()) return;
 
-    try {
-      const { error } = await supabase
-        .from('student_video_notes')
-        .update({ note_text: editingNoteText.trim() })
-        .eq('id', noteId);
+      try {
+        const { error } = await supabase
+          .from('student_video_notes')
+          .update({ note_text: editingNoteText.trim() })
+          .eq('id', noteId);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      setNotes(prev => prev.map(n => 
-        n.id === noteId ? { ...n, note_text: editingNoteText.trim() } : n
-      ));
-      setEditingNoteId(null);
-      setEditingNoteText('');
-      toast.success('Note updated!');
-    } catch (error) {
-      console.error('Error updating note:', error);
-      toast.error('Failed to update note');
-    }
-  }, [editingNoteText]);
+        setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, note_text: editingNoteText.trim() } : n)));
+        setEditingNoteId(null);
+        setEditingNoteText('');
+        toast.success('Note updated!');
+      } catch (error) {
+        console.error('Error updating note:', error);
+        toast.error('Failed to update note');
+      }
+    },
+    [editingNoteText, userId]
+  );
 
-  const deleteNote = useCallback(async (noteId: string) => {
-    try {
-      const { error } = await supabase
-        .from('student_video_notes')
-        .delete()
-        .eq('id', noteId);
+  const deleteNote = useCallback(
+    async (noteId: string) => {
+      if (!userId) {
+        toast.info('Log in to delete notes');
+        return;
+      }
 
-      if (error) throw error;
+      try {
+        const { error } = await supabase.from('student_video_notes').delete().eq('id', noteId);
 
-      setNotes(prev => prev.filter(n => n.id !== noteId));
-      toast.info('Note deleted');
-    } catch (error) {
-      console.error('Error deleting note:', error);
-      toast.error('Failed to delete note');
-    }
-  }, []);
+        if (error) throw error;
+
+        setNotes((prev) => prev.filter((n) => n.id !== noteId));
+        toast.info('Note deleted');
+      } catch (error) {
+        console.error('Error deleting note:', error);
+        toast.error('Failed to delete note');
+      }
+    },
+    [userId]
+  );
+
 
   const jumpToTime = useCallback((time: number) => {
     if (videoRef.current && time <= maxWatchedTime + 3) {
@@ -578,44 +596,52 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   };
 
   // Save progress
-  const saveProgress = useCallback(async (watchTime: number, completed: boolean = false) => {
-    const now = Date.now();
-    if (!completed && now - lastSaveTime.current < 10000) return;
-    lastSaveTime.current = now;
+  const saveProgress = useCallback(
+    async (watchTime: number, completed: boolean = false) => {
+      const now = Date.now();
+      if (!completed && now - lastSaveTime.current < 10000) return;
+      lastSaveTime.current = now;
 
-    if (!userId) return;
+      if (!userId) return;
 
-    setIsSaving(true);
-    try {
-      const { error } = await supabase
-        .from('student_video_progress')
-        .upsert([{
-          user_id: userId,
-          material_id: materialId,
-          course_id: courseId,
-          module_id: moduleId,
-          topic_id: topicId,
-          watch_time_seconds: Math.floor(watchTime),
-          total_duration_seconds: Math.floor(duration),
-          completed,
-          completed_at: completed ? new Date().toISOString() : null,
-        }] as any, {
-          onConflict: 'user_id,material_id'
-        });
+      setIsSaving(true);
+      try {
+        const { error } = await supabase
+          .from('student_video_progress')
+          .upsert(
+            [
+              {
+                user_id: userId,
+                material_id: materialId,
+                course_id: courseId,
+                module_id: moduleId,
+                topic_id: topicId,
+                watch_time_seconds: Math.floor(watchTime),
+                total_duration_seconds: Math.floor(duration),
+                completed,
+                completed_at: completed ? new Date().toISOString() : null,
+              },
+            ] as any,
+            {
+              onConflict: 'user_id,material_id',
+            }
+          );
 
-      if (error) throw error;
-      
-      if (completed && !isCompleted) {
-        setIsCompleted(true);
-        onComplete(moduleId);
-        toast.success('Video marked as complete!');
+        if (error) throw error;
+
+        if (completed && !isCompleted) {
+          setIsCompleted(true);
+          onComplete?.(moduleId);
+          toast.success('Video marked as complete!');
+        }
+      } catch (error) {
+        console.error('Error saving progress:', error);
+      } finally {
+        setIsSaving(false);
       }
-    } catch (error) {
-      console.error('Error saving progress:', error);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [materialId, courseId, moduleId, topicId, duration, isCompleted, onComplete, userId]);
+    },
+    [materialId, courseId, moduleId, topicId, duration, isCompleted, onComplete, userId]
+  );
 
   const handleConfirmCompletion = useCallback(() => {
     setShowCompletionDialog(false);
@@ -629,10 +655,10 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
-    
+
     const current = videoRef.current.currentTime;
     const videoDuration = videoRef.current.duration;
-    
+
     if (current > maxWatchedTime + 3) {
       videoRef.current.currentTime = maxWatchedTime;
       toast.warning('You cannot skip ahead in the video');
@@ -640,12 +666,12 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     }
 
     setCurrentTime(current);
-    
+
     if (current > maxWatchedTime) {
       setMaxWatchedTime(current);
     }
 
-    if (videoDuration > 0 && current >= videoDuration * 0.9 && !isCompleted && !pendingCompletion) {
+    if (userId && videoDuration > 0 && current >= videoDuration * 0.9 && !isCompleted && !pendingCompletion) {
       setPendingCompletion(true);
       videoRef.current?.pause();
       setShowCompletionDialog(true);
@@ -653,6 +679,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       saveProgress(current, false);
     }
   };
+
 
   const handlePause = () => {
     setIsPlaying(false);
@@ -735,16 +762,17 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     if (current > segmentStart.current) {
       const newSegment: WatchedSegment = {
         start: Math.floor(segmentStart.current),
-        end: Math.floor(current)
+        end: Math.floor(current),
       };
-      setWatchedSegments(prev => mergeSegments([...prev, newSegment]));
+      setWatchedSegments((prev) => mergeSegments([...prev, newSegment]));
     }
-    
-    if (!isCompleted && !pendingCompletion) {
+
+    if (userId && !isCompleted && !pendingCompletion) {
       setPendingCompletion(true);
       setShowCompletionDialog(true);
     }
   };
+
 
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     console.error('Video load error:', e);

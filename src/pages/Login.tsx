@@ -57,6 +57,7 @@ export default function Login() {
     { label: 'Institution', email: 'college@institution.com' },
     { label: 'Teacher', email: 'teacher@teacher.com' },
     { label: 'Student', email: 'student@student.com' },
+    { label: 'Sravanthi', email: 'sravanthi@student.com' },
   ];
 
   return (
@@ -69,7 +70,7 @@ export default function Login() {
             <GraduationCap className="w-10 h-10 text-primary-foreground" />
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-primary-foreground mb-4">
-            EduManager
+            Tec-You UpSkill
           </h1>
           <p className="text-xl text-primary-foreground/80 max-w-md">
             A comprehensive educational management system for institutions, teachers, and students.
@@ -104,7 +105,7 @@ export default function Login() {
             <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
               <GraduationCap className="w-6 h-6 text-primary-foreground" />
             </div>
-            <span className="text-2xl font-bold">EduManager</span>
+            <span className="text-2xl font-bold">Tec-You UpSkill</span>
           </div>
 
           <div className="text-center mb-8">

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Progress } from '@/components/ui/progress';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import { BookOpen, Video, FileText, Play, ArrowLeft, Lock, CheckCircle, Loader2, ClipboardCheck, Trophy, Eye } from 'lucide-react';
 import { coursesSyllabusData, CourseSyllabus, SyllabusModule } from '@/data/coursesSyllabusData';
 import { supabase } from '@/integrations/supabase/client';
@@ -255,32 +255,21 @@ export default function StudentCoursesPage() {
 
         {/* Video Player Modal */}
         {activeVideo && (
-          userId ? (
-            <VideoPlayerModal
-              isOpen={!!activeVideo}
-              onClose={() => setActiveVideo(null)}
-              videoUrl={activeVideo.material.file_url}
-              videoTitle={activeVideo.material.name}
-              topicName={activeVideo.topicName}
-              courseId={selectedCourse.id}
-              moduleId={activeVideo.material.module_id}
-              topicId={activeVideo.material.topic_id}
-              materialId={activeVideo.material.id}
-              userId={userId}
-              onComplete={handleVideoComplete}
-            />
-          ) : (
-            <Dialog open={!!activeVideo} onOpenChange={() => setActiveVideo(null)}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Authentication Required</DialogTitle>
-                </DialogHeader>
-                <p className="text-muted-foreground">Please log in to watch videos.</p>
-                <Button onClick={() => setActiveVideo(null)}>Close</Button>
-              </DialogContent>
-            </Dialog>
-          )
+          <VideoPlayerModal
+            isOpen={!!activeVideo}
+            onClose={() => setActiveVideo(null)}
+            videoUrl={activeVideo.material.file_url}
+            videoTitle={activeVideo.material.name}
+            topicName={activeVideo.topicName}
+            courseId={selectedCourse.id}
+            moduleId={activeVideo.material.module_id}
+            topicId={activeVideo.material.topic_id}
+            materialId={activeVideo.material.id}
+            userId={userId ?? undefined}
+            onComplete={handleVideoComplete as any}
+          />
         )}
+
 
         {/* Document Viewer Modal */}
         {activeDocument && (

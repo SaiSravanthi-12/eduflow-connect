@@ -1,8 +1,11 @@
 import en from './translations/en.json';
 import hi from './translations/hi.json';
 import te from './translations/te.json';
+import ta from './translations/ta.json';
+import kn from './translations/kn.json';
+import ml from './translations/ml.json';
 
-export type SupportedLanguage = 'en' | 'hi' | 'te';
+export type SupportedLanguage = 'en' | 'hi' | 'te' | 'ta' | 'kn' | 'ml';
 
 export interface LanguageOption {
   code: SupportedLanguage;
@@ -15,12 +18,18 @@ export const supportedLanguages: LanguageOption[] = [
   { code: 'en', name: 'English', nativeName: 'English', flag: '🇺🇸' },
   { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳' },
   { code: 'te', name: 'Telugu', nativeName: 'తెలుగు', flag: '🇮🇳' },
+  { code: 'ta', name: 'Tamil', nativeName: 'தமிழ்', flag: '🇮🇳' },
+  { code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ', flag: '🇮🇳' },
+  { code: 'ml', name: 'Malayalam', nativeName: 'മലയാളം', flag: '🇮🇳' },
 ];
 
 export const translations: Record<SupportedLanguage, typeof en> = {
   en,
   hi,
   te,
+  ta,
+  kn,
+  ml,
 };
 
 // Get nested value from object using dot notation

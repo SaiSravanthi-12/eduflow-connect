@@ -19,6 +19,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { LanguageSelector } from '@/components/common/LanguageSelector';
 
 interface NavItem {
   icon: React.ElementType;
@@ -103,7 +104,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <GraduationCap className="w-6 h-6 text-primary" />
           <span className="font-semibold">Tec-You UpSkill</span>
         </div>
-        <div className="w-10" />
+        <LanguageSelector variant="ghost" size="icon" showLabel={false} />
       </header>
 
       {/* Mobile Sidebar Overlay */}
@@ -177,8 +178,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             })}
           </nav>
 
-          {/* Logout */}
-          <div className="p-4 border-t border-border">
+          {/* Language & Logout */}
+          <div className="p-4 border-t border-border space-y-2">
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-sm text-muted-foreground">Language</span>
+              <LanguageSelector variant="outline" size="sm" showLabel={true} />
+            </div>
             <Button
               variant="ghost"
               className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"

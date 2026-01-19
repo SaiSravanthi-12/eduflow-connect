@@ -199,6 +199,7 @@ export type Database = {
           email: string | null
           id: string
           institution_id: string | null
+          language_preference: string | null
           name: string | null
           updated_at: string
         }
@@ -207,6 +208,7 @@ export type Database = {
           email?: string | null
           id: string
           institution_id?: string | null
+          language_preference?: string | null
           name?: string | null
           updated_at?: string
         }
@@ -215,6 +217,7 @@ export type Database = {
           email?: string | null
           id?: string
           institution_id?: string | null
+          language_preference?: string | null
           name?: string | null
           updated_at?: string
         }
@@ -533,6 +536,94 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "video_chapters_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "course_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_language_metadata: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          language_code: string
+          material_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          language_code?: string
+          material_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          language_code?: string
+          material_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_language_metadata_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "course_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_subtitles: {
+        Row: {
+          course_id: string
+          created_at: string
+          id: string
+          is_default: boolean
+          language_code: string
+          language_name: string
+          material_id: string | null
+          module_id: string
+          subtitle_url: string
+          topic_id: string
+          updated_at: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          language_code?: string
+          language_name?: string
+          material_id?: string | null
+          module_id: string
+          subtitle_url: string
+          topic_id: string
+          updated_at?: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          language_code?: string
+          language_name?: string
+          material_id?: string | null
+          module_id?: string
+          subtitle_url?: string
+          topic_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_subtitles_material_id_fkey"
             columns: ["material_id"]
             isOneToOne: false
             referencedRelation: "course_materials"

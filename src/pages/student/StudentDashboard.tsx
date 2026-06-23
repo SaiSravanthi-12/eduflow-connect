@@ -6,42 +6,44 @@ import { BookOpen, CheckCircle, Clock, Award } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const { t, tv, formatDate, formatNumber, formatPercent } = useLanguage();
 
   const performanceData = [
-    { label: 'Quizzes', score: 85, total: 100 },
-    { label: 'Assignments', score: 72, total: 100 },
-    { label: 'Attendance', score: 90, total: 100 },
+    { label: t('dashboard.quizzes'), score: 85, total: 100 },
+    { label: t('dashboard.assignments'), score: 72, total: 100 },
+    { label: t('dashboard.attendance'), score: 90, total: 100 },
   ];
 
   return (
     <DashboardLayout>
       <PageHeader
-        title={`Welcome, ${user?.name || 'Student'}`}
-        description="Track your courses, assignments, and performance"
+        title={tv('dashboard.studentTitle', { name: user?.name || t('roles.student') })}
+        description={t('dashboard.studentDescription')}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
-          title="Enrolled Courses"
-          value="4"
+          title={t('dashboard.enrolledCourses')}
+          value={formatNumber(4)}
           icon={BookOpen}
         />
         <StatCard
-          title="Completed"
-          value="12"
+          title={t('dashboard.completed')}
+          value={formatNumber(12)}
           icon={CheckCircle}
         />
         <StatCard
-          title="Pending Tasks"
-          value="5"
+          title={t('dashboard.pendingTasks')}
+          value={formatNumber(5)}
           icon={Clock}
         />
         <StatCard
-          title="Avg. Score"
-          value="82%"
+          title={t('dashboard.avgScore')}
+          value={formatPercent(82)}
           icon={Award}
         />
       </div>
@@ -50,7 +52,7 @@ export default function StudentDashboard() {
         {/* Course Progress */}
         <Card>
           <CardHeader>
-            <CardTitle>Course Progress</CardTitle>
+            <CardTitle>{t('dashboard.courseProgress')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             {[
@@ -62,7 +64,7 @@ export default function StudentDashboard() {
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{course.name}</span>
                   <span className="text-sm text-muted-foreground">
-                    {course.completed}/{course.total} classes
+                    {formatNumber(course.completed)}/{formatNumber(course.total)} {t('dashboard.classes')}
                   </span>
                 </div>
                 <ProgressBar value={course.completed} max={course.total} />
@@ -74,14 +76,14 @@ export default function StudentDashboard() {
         {/* Performance Overview */}
         <Card>
           <CardHeader>
-            <CardTitle>Performance Overview</CardTitle>
+            <CardTitle>{t('dashboard.performanceOverview')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             {performanceData.map((item, index) => (
               <div key={index} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{item.label}</span>
-                  <span className="text-sm font-semibold">{item.score}%</span>
+                  <span className="text-sm font-semibold">{formatPercent(item.score)}</span>
                 </div>
                 <ProgressBar value={item.score} max={item.total} />
               </div>
@@ -92,14 +94,14 @@ export default function StudentDashboard() {
         {/* Upcoming Deadlines */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Upcoming Deadlines</CardTitle>
+            <CardTitle>{t('dashboard.upcomingDeadlines')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[
-                { title: 'HTML Quiz', course: 'Web Development', due: 'Dec 25, 2024', type: 'quiz' },
-                { title: 'Python Project', course: 'Data Science', due: 'Dec 28, 2024', type: 'assignment' },
-                { title: 'Final Exam', course: 'Mobile Development', due: 'Jan 5, 2025', type: 'exam' },
+                { title: 'HTML Quiz', course: 'Web Development', due: new Date('2024-12-25'), type: 'quiz' },
+                { title: 'Python Project', course: 'Data Science', due: new Date('2024-12-28'), type: 'assignment' },
+                { title: 'Final Exam', course: 'Mobile Development', due: new Date('2025-01-05'), type: 'exam' },
               ].map((item, index) => (
                 <div
                   key={index}
@@ -110,11 +112,11 @@ export default function StudentDashboard() {
                     item.type === 'assignment' ? 'bg-success/10 text-success' :
                     'bg-accent/10 text-accent'
                   }`}>
-                    {item.type}
+                    {t(`course.${item.type === 'exam' ? 'finalExam' : item.type}`)}
                   </div>
                   <p className="font-medium">{item.title}</p>
                   <p className="text-sm text-muted-foreground">{item.course}</p>
-                  <p className="text-sm font-medium mt-2">{item.due}</p>
+                  <p className="text-sm font-medium mt-2">{formatDate(item.due)}</p>
                 </div>
               ))}
             </div>

@@ -1,6 +1,18 @@
 {
   "common": {
     "loading": "लोड हो रहा है...",
+    "welcome": "स्वागत है",
+    "welcomeBack": "वापसी पर स्वागत है",
+    "appName": "Tec-You UpSkill",
+    "signingIn": "साइन इन हो रहा है...",
+    "quickDemoAccess": "त्वरित डेमो एक्सेस",
+    "useAnyPassword": "डेमो ईमेल के साथ कोई भी पासवर्ड उपयोग करें",
+    "enterEmail": "अपना ईमेल दर्ज करें",
+    "enterPassword": "अपना पासवर्ड दर्ज करें",
+    "signInDescription": "अपने डैशबोर्ड पर जारी रखने के लिए साइन इन करें",
+    "invalidLogin": "अमान्य ईमेल प्रारूप। @admin, @institution, @teacher, या @student डोमेन का उपयोग करें।",
+    "missingCredentials": "कृपया ईमेल और पासवर्ड दोनों दर्ज करें",
+    "loginSuccess": "आपने सफलतापूर्वक लॉग इन किया है।",
     "save": "सहेजें",
     "cancel": "रद्द करें",
     "delete": "हटाएं",

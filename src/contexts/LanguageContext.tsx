@@ -10,11 +10,16 @@ import {
   LanguageOption 
 } from '@/i18n';
 import { toast } from 'sonner';
+import { formatDate as fmtDate, formatNumber as fmtNumber, formatPercent as fmtPercent, interpolate } from '@/i18n/format';
 
 interface LanguageContextType {
   language: SupportedLanguage;
   setLanguage: (lang: SupportedLanguage) => void;
   t: (key: string) => string;
+  tv: (key: string, vars: Record<string, string | number>) => string;
+  formatDate: (date: Date | string | number, options?: Intl.DateTimeFormatOptions) => string;
+  formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
+  formatPercent: (value: number) => string;
   supportedLanguages: LanguageOption[];
   isLoading: boolean;
   subtitleLanguage: SupportedLanguage;
@@ -151,10 +156,28 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     return translateFn(key, language);
   }, [language]);
 
+  const tv = useCallback((key: string, vars: Record<string, string | number>): string => {
+    return interpolate(translateFn(key, language), vars);
+  }, [language]);
+
+  const formatDate = useCallback(
+    (date: Date | string | number, options?: Intl.DateTimeFormatOptions) => fmtDate(date, language, options),
+    [language]
+  );
+  const formatNumber = useCallback(
+    (value: number, options?: Intl.NumberFormatOptions) => fmtNumber(value, language, options),
+    [language]
+  );
+  const formatPercent = useCallback((value: number) => fmtPercent(value, language), [language]);
+
   const value: LanguageContextType = {
     language,
     setLanguage,
     t,
+    tv,
+    formatDate,
+    formatNumber,
+    formatPercent,
     supportedLanguages,
     isLoading,
     subtitleLanguage,

@@ -20,44 +20,45 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LanguageSelector } from '@/components/common/LanguageSelector';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface NavItem {
   icon: React.ElementType;
-  label: string;
+  labelKey: string;
   href: string;
 }
 
 const navItemsByRole: Record<string, NavItem[]> = {
   admin: [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/admin' },
-    { icon: Building2, label: 'Institutions', href: '/admin/institutions' },
-    { icon: Settings, label: 'Settings', href: '/admin/settings' },
+    { icon: LayoutDashboard, labelKey: 'navigation.dashboard', href: '/admin' },
+    { icon: Building2, labelKey: 'navigation.institutions', href: '/admin/institutions' },
+    { icon: Settings, labelKey: 'navigation.settings', href: '/admin/settings' },
   ],
   institution: [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/institution' },
-    { icon: Users, label: 'Content Managers', href: '/institution/content-managers' },
-    { icon: GraduationCap, label: 'Students', href: '/institution/students' },
-    { icon: BookOpen, label: 'Courses', href: '/institution/courses' },
-    { icon: ClipboardList, label: 'Enrollment Requests', href: '/institution/enrollment-requests' },
-    { icon: User, label: 'Profile', href: '/institution/profile' },
+    { icon: LayoutDashboard, labelKey: 'navigation.dashboard', href: '/institution' },
+    { icon: Users, labelKey: 'navigation.contentManagers', href: '/institution/content-managers' },
+    { icon: GraduationCap, labelKey: 'navigation.students', href: '/institution/students' },
+    { icon: BookOpen, labelKey: 'navigation.courses', href: '/institution/courses' },
+    { icon: ClipboardList, labelKey: 'navigation.enrollmentRequests', href: '/institution/enrollment-requests' },
+    { icon: User, labelKey: 'navigation.profile', href: '/institution/profile' },
   ],
   teacher: [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/teacher' },
-    { icon: BookOpen, label: 'Courses', href: '/teacher/courses' },
-    { icon: GraduationCap, label: 'Students', href: '/teacher/students' },
-    { icon: FileText, label: 'Assignments', href: '/teacher/assignments' },
-    { icon: BarChart3, label: 'Results', href: '/teacher/results' },
-    { icon: User, label: 'Profile', href: '/teacher/profile' },
+    { icon: LayoutDashboard, labelKey: 'navigation.dashboard', href: '/teacher' },
+    { icon: BookOpen, labelKey: 'navigation.courses', href: '/teacher/courses' },
+    { icon: GraduationCap, labelKey: 'navigation.students', href: '/teacher/students' },
+    { icon: FileText, labelKey: 'navigation.assignments', href: '/teacher/assignments' },
+    { icon: BarChart3, labelKey: 'navigation.results', href: '/teacher/results' },
+    { icon: User, labelKey: 'navigation.profile', href: '/teacher/profile' },
   ],
   student: [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/student' },
-    { icon: BookOpen, label: 'My Courses', href: '/student/courses' },
-    { icon: Building2, label: 'Browse Courses', href: '/student/browse-courses' },
-    { icon: ClipboardList, label: 'Quizzes', href: '/student/quizzes' },
-    { icon: FileText, label: 'Assignments', href: '/student/assignments' },
-    { icon: GraduationCap, label: 'Exams', href: '/student/exams' },
-    { icon: BarChart3, label: 'Psychometric Test', href: '/student/psychometric-test' },
-    { icon: User, label: 'Profile', href: '/student/profile' },
+    { icon: LayoutDashboard, labelKey: 'navigation.dashboard', href: '/student' },
+    { icon: BookOpen, labelKey: 'navigation.myCourses', href: '/student/courses' },
+    { icon: Building2, labelKey: 'navigation.browseCourses', href: '/student/browse-courses' },
+    { icon: ClipboardList, labelKey: 'navigation.quizzes', href: '/student/quizzes' },
+    { icon: FileText, labelKey: 'navigation.assignments', href: '/student/assignments' },
+    { icon: GraduationCap, labelKey: 'navigation.exams', href: '/student/exams' },
+    { icon: BarChart3, labelKey: 'navigation.psychometricTest', href: '/student/psychometric-test' },
+    { icon: User, labelKey: 'navigation.profile', href: '/student/profile' },
   ],
 };
 
@@ -70,6 +71,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { t } = useLanguage();
 
   if (!user) return null;
 
@@ -80,15 +82,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     navigate('/login');
   };
 
-  const getRoleLabel = (role: string) => {
-    const labels: Record<string, string> = {
-      admin: 'System Admin',
-      institution: 'Institution',
-      teacher: 'Content Manager',
-      student: 'Student',
-    };
-    return labels[role] || role;
-  };
+  const getRoleLabel = (role: string) => t(`roles.${role}`);
 
   return (
     <div className="min-h-screen bg-background">
@@ -102,7 +96,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </button>
         <div className="flex items-center gap-2">
           <GraduationCap className="w-6 h-6 text-primary" />
-          <span className="font-semibold">Tec-You UpSkill</span>
+          <span className="font-semibold">{t('common.appName')}</span>
         </div>
         <LanguageSelector variant="ghost" size="icon" showLabel={false} />
       </header>
@@ -129,7 +123,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
                 <GraduationCap className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-bold text-lg">Tec-You UpSkill</span>
+              <span className="font-bold text-lg">{t('common.appName')}</span>
             </Link>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -171,7 +165,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   )}
                 >
                   <Icon className="w-5 h-5" />
-                  <span>{item.label}</span>
+                  <span>{t(item.labelKey)}</span>
                   {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
                 </Link>
               );
@@ -181,7 +175,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Language & Logout */}
           <div className="p-4 border-t border-border space-y-2">
             <div className="flex items-center justify-between px-3 py-2">
-              <span className="text-sm text-muted-foreground">Language</span>
+              <span className="text-sm text-muted-foreground">{t('common.language')}</span>
               <LanguageSelector variant="outline" size="sm" showLabel={true} />
             </div>
             <Button
@@ -190,7 +184,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               onClick={handleLogout}
             >
               <LogOut className="w-5 h-5" />
-              <span>Logout</span>
+              <span>{t('common.logout')}</span>
             </Button>
           </div>
         </div>

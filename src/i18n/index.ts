@@ -23,7 +23,8 @@ export const supportedLanguages: LanguageOption[] = [
   { code: 'ml', name: 'Malayalam', nativeName: 'മലയാളം', flag: '🇮🇳' },
 ];
 
-export const translations: Record<SupportedLanguage, typeof en> = {
+type TranslationDict = typeof en;
+export const translations: Record<SupportedLanguage, TranslationDict | Record<string, any>> = {
   en,
   hi,
   te,

@@ -26,7 +26,19 @@
     "error": "లోపం",
     "success": "విజయం",
     "warning": "హెచ్చరిక",
-    "info": "సమాచారం"
+    "info": "సమాచారం",
+    "welcome": "స్వాగతం",
+    "welcomeBack": "తిరిగి స్వాగతం",
+    "appName": "Tec-You UpSkill",
+    "signingIn": "సైన్ ఇన్ అవుతోంది...",
+    "quickDemoAccess": "త్వరిత డెమో యాక్సెస్",
+    "useAnyPassword": "డెమో ఇమెయిల్‌లతో ఏదైనా పాస్‌వర్డ్ వాడండి",
+    "enterEmail": "మీ ఇమెయిల్ నమోదు చేయండి",
+    "enterPassword": "మీ పాస్‌వర్డ్ నమోదు చేయండి",
+    "signInDescription": "మీ డాష్‌బోర్డ్‌కు కొనసాగడానికి సైన్ ఇన్ చేయండి",
+    "invalidLogin": "చెల్లని ఇమెయిల్ ఫార్మాట్. @admin, @institution, @teacher లేదా @student డొమైన్ వాడండి.",
+    "missingCredentials": "దయచేసి ఇమెయిల్ మరియు పాస్‌వర్డ్ రెండూ నమోదు చేయండి",
+    "loginSuccess": "మీరు విజయవంతంగా లాగిన్ అయ్యారు."
   },
   "auth": {
     "loginTitle": "మీ ఖాతాలో సైన్ ఇన్ చేయండి",
@@ -197,5 +209,27 @@
     "bn": "বাংলা (Bengali)",
     "gu": "ગુજરાતી (Gujarati)",
     "pa": "ਪੰਜਾਬੀ (Punjabi)"
+  },
+  "roles": {
+    "admin": "సిస్టమ్ అడ్మిన్",
+    "institution": "సంస్థ",
+    "teacher": "కంటెంట్ మేనేజర్",
+    "student": "విద్యార్థి",
+    "sravanthi": "శ్రావంతి"
+  },
+  "dashboard": {
+    "studentTitle": "స్వాగతం, {name}",
+    "studentDescription": "మీ కోర్సులు, అసైన్‌మెంట్‌లు మరియు పనితీరును ట్రాక్ చేయండి",
+    "enrolledCourses": "నమోదిత కోర్సులు",
+    "completed": "పూర్తయ్యాయి",
+    "pendingTasks": "పెండింగ్ పనులు",
+    "avgScore": "సగటు స్కోర్",
+    "courseProgress": "కోర్సు పురోగతి",
+    "performanceOverview": "పనితీరు అవలోకనం",
+    "upcomingDeadlines": "రానున్న గడువులు",
+    "classes": "తరగతులు",
+    "quizzes": "క్విజ్‌లు",
+    "assignments": "అసైన్‌మెంట్‌లు",
+    "attendance": "హాజరు"
   }
 }

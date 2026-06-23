@@ -1,6 +1,18 @@
 {
   "common": {
     "loading": "Loading...",
+    "welcome": "Welcome",
+    "welcomeBack": "Welcome back",
+    "appName": "Tec-You UpSkill",
+    "signingIn": "Signing in...",
+    "quickDemoAccess": "Quick Demo Access",
+    "useAnyPassword": "Use any password with demo emails",
+    "enterEmail": "Enter your email",
+    "enterPassword": "Enter your password",
+    "signInDescription": "Sign in to continue to your dashboard",
+    "invalidLogin": "Invalid email format. Use @admin, @institution, @teacher, or @student domain.",
+    "missingCredentials": "Please enter both email and password",
+    "loginSuccess": "You have successfully logged in.",
     "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",
@@ -59,7 +71,30 @@
     "contentManagers": "Content Managers",
     "enrollmentRequests": "Enrollment Requests",
     "psychometricTest": "Psychometric Test",
-    "careerGuidance": "Career Guidance"
+    "careerGuidance": "Career Guidance",
+    "settings": "Settings"
+  },
+  "roles": {
+    "admin": "System Admin",
+    "institution": "Institution",
+    "teacher": "Content Manager",
+    "student": "Student",
+    "sravanthi": "Sravanthi"
+  },
+  "dashboard": {
+    "studentTitle": "Welcome, {name}",
+    "studentDescription": "Track your courses, assignments, and performance",
+    "enrolledCourses": "Enrolled Courses",
+    "completed": "Completed",
+    "pendingTasks": "Pending Tasks",
+    "avgScore": "Avg. Score",
+    "courseProgress": "Course Progress",
+    "performanceOverview": "Performance Overview",
+    "upcomingDeadlines": "Upcoming Deadlines",
+    "classes": "classes",
+    "quizzes": "Quizzes",
+    "assignments": "Assignments",
+    "attendance": "Attendance"
   },
   "video": {
     "play": "Play",

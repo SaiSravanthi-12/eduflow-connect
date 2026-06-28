@@ -26,7 +26,38 @@ interface LanguageContextType {
   setSubtitleLanguage: (lang: SupportedLanguage) => void;
 }
 
-const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+// Build a safe default so consumers rendered outside the provider (or against a
+// stale HMR module reference) still receive a working context instead of
+// crashing the entire app with a blank screen.
+const createDefaultContext = (): LanguageContextType => {
+  const lang: SupportedLanguage = (typeof window !== 'undefined' && getStoredLanguage()) || 'en';
+  return {
+    language: lang,
+    setLanguage: () => {
+      if (typeof window !== 'undefined') {
+        console.warn('[i18n] setLanguage called outside <LanguageProvider>. Ignoring.');
+      }
+    },
+    t: (key: string) => translateFn(key, lang),
+    tv: (key, vars) => interpolate(translateFn(key, lang), vars),
+    formatDate: (date, options) => fmtDate(date, lang, options),
+    formatNumber: (value, options) => fmtNumber(value, lang, options),
+    formatPercent: (value) => fmtPercent(value, lang),
+    supportedLanguages,
+    isLoading: false,
+    subtitleLanguage: lang,
+    setSubtitleLanguage: () => {},
+  };
+};
+
+// Reuse the same context instance across HMR reloads so that providers and
+// consumers from differently-cached module instances still talk to each other.
+const GLOBAL_KEY = '__LOVABLE_LANGUAGE_CONTEXT__';
+const globalAny = globalThis as any;
+const LanguageContext: React.Context<LanguageContextType> =
+  globalAny[GLOBAL_KEY] ??
+  (globalAny[GLOBAL_KEY] = createContext<LanguageContextType>(createDefaultContext()));
+LanguageContext.displayName = 'LanguageContext';
 
 interface LanguageProviderProps {
   children: ReactNode;
@@ -193,11 +224,16 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
 
 export const useLanguage = (): LanguageContextType => {
   const context = useContext(LanguageContext);
-  
+
   if (!context) {
-    throw new Error('useLanguage must be used within a LanguageProvider');
+    // Defensive fallback — should not happen because the context now has a
+    // default value, but protects against bundler edge cases during HMR.
+    if (typeof window !== 'undefined') {
+      console.warn('[i18n] useLanguage used without a LanguageProvider; using fallback.');
+    }
+    return createDefaultContext();
   }
-  
+
   return context;
 };
 
